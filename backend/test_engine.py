@@ -13,9 +13,13 @@ class TestERCFEngine(unittest.TestCase):
     def setUp(self):
         self.engine = ERCFEngine()
 
+    def _expected_base_weight(self, rate_type: str, dscr_band_key: str, ltv_band_key: str) -> float:
+        cfg = load_config()
+        table = cfg["arm_base_risk_weights"] if rate_type == "arm" else cfg["fixed_rate_base_risk_weights"]
+        return float(table[dscr_band_key][ltv_band_key])
+
     def test_engine_uses_table_driven_base_risk_weight_for_fixed_rate_loans(self):
-        # From backend/ercf_config.yaml:
-        # fixed_rate_base_risk_weights.le_125.le_80 = 0.65
+        # Validate the lookup path (bands -> keys -> table cell), not the literal numbers.
         loan = LoanInput(
             loan_id="BASE-TABLE-FIXED-1",
             original_upb=1000,
@@ -32,11 +36,10 @@ class TestERCFEngine(unittest.TestCase):
         )
 
         result = self.engine.calculate_loan(loan)
-        self.assertAlmostEqual(result.base_risk_weight, 0.65)
+        self.assertAlmostEqual(result.base_risk_weight, self._expected_base_weight("fixed", "le_125", "le_80"))
 
     def test_engine_uses_table_driven_base_risk_weight_for_arm_loans(self):
-        # From backend/ercf_config.yaml:
-        # arm_base_risk_weights.le_100.le_70 = 0.75
+        # Validate the lookup path (bands -> keys -> table cell), not the literal numbers.
         loan = LoanInput(
             loan_id="BASE-TABLE-ARM-1",
             original_upb=1000,
@@ -53,7 +56,7 @@ class TestERCFEngine(unittest.TestCase):
         )
 
         result = self.engine.calculate_loan(loan)
-        self.assertAlmostEqual(result.base_risk_weight, 0.75)
+        self.assertAlmostEqual(result.base_risk_weight, self._expected_base_weight("arm", "le_100", "le_70"))
 
     def test_engine_populates_core_multipliers_and_combines_them(self):
         loan = LoanInput(
@@ -75,6 +78,10 @@ class TestERCFEngine(unittest.TestCase):
         io_loan = loan.model_copy(update={"interest_only": True})
         io_result = self.engine.calculate_loan(io_loan)
 
+        # Regression: the new core multipliers must not affect the legacy proxy outputs.
+        self.assertAlmostEqual(io_result.estimated_capital_factor, baseline.estimated_capital_factor)
+        self.assertAlmostEqual(io_result.estimated_capital_amount, baseline.estimated_capital_amount)
+
         self.assertGreater(io_result.interest_only_multiplier, baseline.interest_only_multiplier)
         self.assertGreater(io_result.combined_multiplier, baseline.combined_multiplier)
 
@@ -92,6 +99,30 @@ class TestERCFEngine(unittest.TestCase):
         self.assertIsNotNone(io_result.base_risk_weight)
         self.assertIsNotNone(io_result.final_risk_weight)
         self.assertGreater(io_result.final_risk_weight, 0.0)
+
+    def test_engine_base_risk_weight_changes_across_bands(self):
+        # Two loans differing only by LTV band should produce different base risk weights.
+        base_kwargs = dict(
+            original_upb=1000,
+            current_upb=1000,
+            original_loan_amount=2_000_000,
+            dscr=1.10,  # dscr_bands: le_125
+            rate_type="fixed",
+            interest_only=False,
+            original_term_months=120,
+            amortization_term_months=360,
+            payment_performance="current",
+            property_type="Multifamily",
+        )
+
+        low_ltv = LoanInput(loan_id="BANDS-1", ltv=0.59, **base_kwargs)  # le_60
+        high_ltv = LoanInput(loan_id="BANDS-2", ltv=0.75, **base_kwargs)  # le_80
+        low_res = self.engine.calculate_loan(low_ltv)
+        high_res = self.engine.calculate_loan(high_ltv)
+
+        self.assertAlmostEqual(low_res.base_risk_weight, self._expected_base_weight("fixed", "le_125", "le_60"))
+        self.assertAlmostEqual(high_res.base_risk_weight, self._expected_base_weight("fixed", "le_125", "le_80"))
+        self.assertNotEqual(low_res.base_risk_weight, high_res.base_risk_weight)
 
     def test_policy_config_is_table_driven_and_has_confidence_settings(self):
         cfg = load_config()

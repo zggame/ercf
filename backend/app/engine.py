@@ -16,11 +16,26 @@ class ERCFEngine:
     def _band_key_for_value(self, value: float, bands: List[Dict[str, Any]]) -> Optional[str]:
         if value is None or not bands:
             return None
+        last_valid_key: Optional[str] = None
         for band in bands:
-            if value <= float(band["max"]):
-                return str(band["key"])
-        # Catch-all: if bands are present but malformed (no max catches), use last key.
-        return str(bands[-1].get("key")) if bands[-1].get("key") is not None else None
+            # Be defensive: YAML config may contain malformed rows. Skip them.
+            if not isinstance(band, dict):
+                continue
+            if "key" not in band or "max" not in band:
+                continue
+            try:
+                max_value = float(band["max"])
+            except Exception:
+                continue
+            key = band.get("key")
+            if key is None:
+                continue
+            last_valid_key = str(key)
+            if value <= max_value:
+                return last_valid_key
+        # Catch-all: if bands exist but the catch-all row is missing, fall back
+        # to the last valid key rather than failing the whole calculation.
+        return last_valid_key
 
     def _base_risk_weight_from_tables(self, loan: LoanInput) -> Optional[float]:
         cfg = self.config
