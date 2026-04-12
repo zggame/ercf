@@ -5,8 +5,9 @@ import pandas as pd
 import io
 import os
 import json
+import threading
 from pathlib import Path
-from .schema import LoanInput, EngineResult, PortfolioSummary
+from .schema import LoanInput, EngineResult, LoanWithResult, PortfolioSummary
 from .engine import ERCFEngine
 
 app = FastAPI(title="ERCF Capital Analytics API")
@@ -21,34 +22,39 @@ app.add_middleware(
 )
 
 engine = ERCFEngine()
+portfolio_lock = threading.Lock()
 
 DB_PATH = Path(__file__).parent.parent / "portfolio_data.json"
 
 
+def _get_default_portfolio() -> List[LoanInput]:
+    return [
+        LoanInput(
+            loan_id="MOCK-001",
+            original_upb=15000000,
+            current_upb=14500000,
+            property_type="Multifamily",
+            is_affordable=True,
+            dscr=1.45,
+            ltv=0.65,
+            state="CA",
+        ),
+        LoanInput(
+            loan_id="MOCK-002",
+            original_upb=25000000,
+            current_upb=25000000,
+            property_type="Seniors Housing",
+            is_affordable=False,
+            dscr=1.15,
+            ltv=0.75,
+            state="TX",
+        ),
+    ]
+
+
 def load_portfolio() -> List[LoanInput]:
     if not DB_PATH.exists():
-        return [
-            LoanInput(
-                loan_id="MOCK-001",
-                original_upb=15000000,
-                current_upb=14500000,
-                property_type="Multifamily",
-                is_affordable=True,
-                dscr=1.45,
-                ltv=0.65,
-                state="CA",
-            ),
-            LoanInput(
-                loan_id="MOCK-002",
-                original_upb=25000000,
-                current_upb=25000000,
-                property_type="Seniors Housing",
-                is_affordable=False,
-                dscr=1.15,
-                ltv=0.75,
-                state="TX",
-            ),
-        ]
+        return _get_default_portfolio()
 
     try:
         with open(DB_PATH, "r", encoding="utf-8") as f:
@@ -56,7 +62,7 @@ def load_portfolio() -> List[LoanInput]:
             return [LoanInput(**item) for item in data]
     except Exception as exc:
         print(f"Failed to load persisted portfolio from {DB_PATH}: {exc}")
-        return []
+        return _get_default_portfolio()
 
 
 def save_portfolio(portfolio: List[LoanInput]) -> None:
@@ -131,9 +137,12 @@ def get_portfolio_summary():
     )
 
 
-@app.get("/api/portfolio/results", response_model=List[EngineResult])
+@app.get("/api/portfolio/results", response_model=List[LoanWithResult])
 def get_portfolio_results():
-    return [engine.calculate_loan(loan) for loan in PORTFOLIO]
+    return [
+        LoanWithResult(loan=loan, result=engine.calculate_loan(loan))
+        for loan in PORTFOLIO
+    ]
 
 
 @app.post("/api/upload")
@@ -143,27 +152,58 @@ async def upload_dataset(file: UploadFile = File(...)):
 
     mapped_count = 0
     failed_rows = []
+    new_loans = []
+
     for idx, row in df.iterrows():
         try:
+            row_id = row.get("loan_id")
+            row_upb = row.get("original_upb")
+            row_cur_upb = row.get("current_upb")
+            row_dscr = row.get("dscr")
+            row_ltv = row.get("ltv")
+
+            if pd.isna(row_id) or str(row_id).strip() == "":
+                failed_rows.append({"row": int(idx), "error": "loan_id is required"})
+                continue
+            if pd.isna(row_upb) or pd.isna(row_cur_upb):
+                failed_rows.append(
+                    {
+                        "row": int(idx),
+                        "error": "original_upb and current_upb are required",
+                    }
+                )
+                continue
+            if pd.isna(row_dscr) or pd.isna(row_ltv):
+                failed_rows.append(
+                    {"row": int(idx), "error": "dscr and ltv are required"}
+                )
+                continue
+
             loan = LoanInput(
-                loan_id=str(row.get("loan_id", f"UPL-{mapped_count}")),
-                original_upb=float(row.get("original_upb", 1000000)),
-                current_upb=float(row.get("current_upb", 1000000)),
-                dscr=float(row.get("dscr", 1.25)),
-                ltv=float(row.get("ltv", 0.65)),
-                property_type=str(row.get("property_type", "Multifamily")),
-                state=str(row.get("state", "Unknown")),
+                loan_id=str(row_id).strip(),
+                original_upb=float(row_upb),
+                current_upb=float(row_cur_upb),
+                dscr=float(row_dscr),
+                ltv=float(row_ltv),
+                property_type=str(row.get("property_type", "Multifamily"))
+                if not pd.isna(row.get("property_type"))
+                else "Multifamily",
+                state=str(row.get("state", "Unknown"))
+                if not pd.isna(row.get("state"))
+                else "Unknown",
             )
-            PORTFOLIO.append(loan)
+            new_loans.append(loan)
             mapped_count += 1
         except Exception as e:
-            failed_rows.append({"row": idx, "error": str(e)})
+            failed_rows.append({"row": int(idx), "error": str(e)})
 
     if mapped_count > 0:
-        save_portfolio(PORTFOLIO)
+        with portfolio_lock:
+            PORTFOLIO.extend(new_loans)
+            save_portfolio(PORTFOLIO)
 
     return {
-        "status": "success" if mapped_count > 0 else "partial",
+        "status": "success" if mapped_count > 0 and not failed_rows else "partial",
         "mapped_records": mapped_count,
         "failed_records": len(failed_rows),
         "errors": failed_rows[:10] if failed_rows else [],

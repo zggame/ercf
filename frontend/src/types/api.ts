@@ -41,6 +41,11 @@ export interface EngineResult {
   data_quality_score: number;
 }
 
+export interface LoanWithResult {
+  loan: LoanInput;
+  result: EngineResult;
+}
+
 export interface PortfolioSummary {
   loan_count: number;
   original_upb_total: number;

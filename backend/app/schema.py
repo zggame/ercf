@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import date
 
+
 class LoanInput(BaseModel):
     # Loan Identification
     loan_id: str
@@ -26,20 +27,21 @@ class LoanInput(BaseModel):
     # Property / Collateral
     property_type: str = "Multifamily"
     number_of_units: Optional[int] = None
-    occupancy_rate: Optional[float] = None # 0.0 to 1.0
+    occupancy_rate: Optional[float] = None  # 0.0 to 1.0
     is_affordable: bool = False
     state: Optional[str] = None
     msa: Optional[str] = None
 
     # Credit and Underwriting
     dscr: float
-    ltv: float # 0.0 to 1.0
+    ltv: float  # 0.0 to 1.0
     debt_yield: Optional[float] = None
     underwritten_noi: Optional[float] = None
     valuation_amount: Optional[float] = None
 
     # Status
     delinquency_status: Optional[str] = "Current"
+
 
 class EngineResult(BaseModel):
     loan_id: str
@@ -50,7 +52,13 @@ class EngineResult(BaseModel):
     dscr_multiplier: float
     property_multiplier: float
     affordability_multiplier: float
-    data_quality_score: int # 0-100
+    data_quality_score: int  # 0-100
+
+
+class LoanWithResult(BaseModel):
+    loan: LoanInput
+    result: EngineResult
+
 
 class PortfolioSummary(BaseModel):
     loan_count: int
