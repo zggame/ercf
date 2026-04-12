@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 import pandas as pd
@@ -26,39 +26,41 @@ DB_PATH = Path(__file__).parent.parent / "portfolio_data.json"
 
 
 def load_portfolio() -> List[LoanInput]:
-    if DB_PATH.exists():
-        try:
-            with open(DB_PATH, "r") as f:
-                data = json.load(f)
-                return [LoanInput(**item) for item in data]
-        except Exception:
-            pass
-    return [
-        LoanInput(
-            loan_id="MOCK-001",
-            original_upb=15000000,
-            current_upb=14500000,
-            property_type="Multifamily",
-            is_affordable=True,
-            dscr=1.45,
-            ltv=0.65,
-            state="CA",
-        ),
-        LoanInput(
-            loan_id="MOCK-002",
-            original_upb=25000000,
-            current_upb=25000000,
-            property_type="Seniors Housing",
-            is_affordable=False,
-            dscr=1.15,
-            ltv=0.75,
-            state="TX",
-        ),
-    ]
+    if not DB_PATH.exists():
+        return [
+            LoanInput(
+                loan_id="MOCK-001",
+                original_upb=15000000,
+                current_upb=14500000,
+                property_type="Multifamily",
+                is_affordable=True,
+                dscr=1.45,
+                ltv=0.65,
+                state="CA",
+            ),
+            LoanInput(
+                loan_id="MOCK-002",
+                original_upb=25000000,
+                current_upb=25000000,
+                property_type="Seniors Housing",
+                is_affordable=False,
+                dscr=1.15,
+                ltv=0.75,
+                state="TX",
+            ),
+        ]
+
+    try:
+        with open(DB_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return [LoanInput(**item) for item in data]
+    except Exception as exc:
+        print(f"Failed to load persisted portfolio from {DB_PATH}: {exc}")
+        return []
 
 
 def save_portfolio(portfolio: List[LoanInput]) -> None:
-    with open(DB_PATH, "w") as f:
+    with open(DB_PATH, "w", encoding="utf-8") as f:
         json.dump([loan.model_dump(mode="json") for loan in portfolio], f)
 
 

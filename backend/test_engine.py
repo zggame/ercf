@@ -1,6 +1,12 @@
+import json
+import tempfile
 import unittest
-from app.schema import LoanInput
+from pathlib import Path
+from unittest.mock import patch
+
+from app import main
 from app.engine import ERCFEngine
+from app.schema import LoanInput
 
 class TestERCFEngine(unittest.TestCase):
     def setUp(self):
@@ -34,6 +40,55 @@ class TestERCFEngine(unittest.TestCase):
 
         # Expected: base 0.5 * 1.5 * 1.5 * 1.1 = 1.2375
         self.assertAlmostEqual(result.estimated_capital_factor, 1.2375)
+
+    def test_load_portfolio_returns_seed_data_when_file_missing(self):
+        missing_path = Path(tempfile.gettempdir()) / "missing-portfolio.json"
+        if missing_path.exists():
+            missing_path.unlink()
+
+        with patch.object(main, "DB_PATH", missing_path):
+            portfolio = main.load_portfolio()
+
+        self.assertEqual(len(portfolio), 2)
+        self.assertEqual(portfolio[0].loan_id, "MOCK-001")
+
+    def test_load_portfolio_returns_empty_when_persisted_file_is_invalid(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            invalid_path = Path(temp_dir) / "portfolio_data.json"
+            invalid_path.write_text("{invalid json", encoding="utf-8")
+
+            with patch.object(main, "DB_PATH", invalid_path):
+                portfolio = main.load_portfolio()
+
+        self.assertEqual(portfolio, [])
+
+    def test_load_portfolio_reads_valid_persisted_loans(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            data_path = Path(temp_dir) / "portfolio_data.json"
+            data_path.write_text(
+                json.dumps(
+                    [
+                        {
+                            "loan_id": "PERSISTED-1",
+                            "original_upb": 2000,
+                            "current_upb": 1500,
+                            "property_type": "Multifamily",
+                            "is_affordable": True,
+                            "dscr": 1.3,
+                            "ltv": 0.6,
+                            "state": "NY",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            with patch.object(main, "DB_PATH", data_path):
+                portfolio = main.load_portfolio()
+
+        self.assertEqual(len(portfolio), 1)
+        self.assertEqual(portfolio[0].loan_id, "PERSISTED-1")
+        self.assertTrue(portfolio[0].is_affordable)
 
 if __name__ == '__main__':
     unittest.main()
