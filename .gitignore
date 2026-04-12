@@ -1,0 +1,32 @@
+# Build artifacts
+.next/
+.next/**
+
+# Local workspace files
+/.codex
+/package-lock.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+
+# Logs
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data files
+portfolio_data.json
+*.db

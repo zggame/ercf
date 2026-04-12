@@ -1,0 +1,31 @@
+base_risk_weight: 0.5
+
+ltv_multipliers:
+  - max: 0.60
+    multiplier: 0.8
+  - max: 0.70
+    multiplier: 1.0
+  - max: 0.80
+    multiplier: 1.2
+  - max: 1.00
+    multiplier: 1.5
+  - max: 999.0
+    multiplier: 2.0
+
+dscr_multipliers:
+  - max: 1.00
+    multiplier: 1.5
+  - max: 1.25
+    multiplier: 1.2
+  - max: 1.50
+    multiplier: 1.0
+  - max: 999.0
+    multiplier: 0.8
+
+property_type_multipliers:
+  "Multifamily": 1.0
+  "Seniors Housing": 1.1
+  "Student Housing": 1.15
+  "Manufactured Housing": 1.05
+
+affordability_multiplier: 0.9
