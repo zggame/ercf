@@ -731,6 +731,96 @@ class TestCuratedExplorer(unittest.TestCase):
 
         self.assertEqual(loaded_rows, rows)
 
+    def test_curated_store_rejects_unsafe_source_and_snapshot_names(self):
+        from app.datasets.curated_store import CuratedStore
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store = CuratedStore(root)
+
+            with self.assertRaisesRegex(ValueError, "Unsupported curated source"):
+                store.load_rows("../fannie_mae", "2025Q3")
+
+            with self.assertRaisesRegex(ValueError, "Invalid snapshot name"):
+                store.load_rows("fannie_mae", "../escape")
+
+    def test_empty_filter_list_does_not_remove_rows(self):
+        from app.datasets.explorer import ExplorerService
+
+        rows = [
+            {
+                "loan_id": "FRE-1",
+                "source": "freddie_mac",
+                "snapshot": "2025Q3",
+                "state": "CA",
+                "property_type": "Multifamily",
+                "current_upb": 100.0,
+                "original_upb": 120.0,
+                "dscr": 1.30,
+                "ltv": 0.60,
+                "estimated_capital_factor": 0.50,
+                "estimated_capital_amount": 50.0,
+            },
+            {
+                "loan_id": "FRE-2",
+                "source": "freddie_mac",
+                "snapshot": "2025Q3",
+                "state": "TX",
+                "property_type": "Seniors Housing",
+                "current_upb": 200.0,
+                "original_upb": 220.0,
+                "dscr": 1.10,
+                "ltv": 0.75,
+                "estimated_capital_factor": 0.75,
+                "estimated_capital_amount": 150.0,
+            },
+        ]
+
+        response = ExplorerService(rows).build_cohort(
+            source="freddie_mac",
+            snapshot="2025Q3",
+            filters={"state": []},
+            breakdown_dimension="state",
+            breakdown_metric="current_upb_total",
+        )
+
+        self.assertEqual(response.summary.loan_count, 2)
+        self.assertEqual(response.summary.current_upb_total, 300.0)
+        self.assertEqual(
+            [point.label for point in response.fixed_charts["state_mix"].points],
+            ["CA", "TX"],
+        )
+
+    def test_invalid_breakdown_dimension_is_rejected(self):
+        from app.datasets.explorer import ExplorerService
+
+        rows = [
+            {
+                "loan_id": "FRE-1",
+                "source": "freddie_mac",
+                "snapshot": "2025Q3",
+                "state": "CA",
+                "property_type": "Multifamily",
+                "current_upb": 100.0,
+                "original_upb": 120.0,
+                "dscr": 1.30,
+                "ltv": 0.60,
+                "estimated_capital_factor": 0.50,
+                "estimated_capital_amount": 50.0,
+            }
+        ]
+
+        service = ExplorerService(rows)
+
+        with self.assertRaisesRegex(ValueError, "Unsupported breakdown dimension"):
+            service.build_cohort(
+                source="freddie_mac",
+                snapshot="2025Q3",
+                filters={},
+                breakdown_dimension="msa",
+                breakdown_metric="current_upb_total",
+            )
+
     def test_explorer_service_filters_and_summarizes_a_curated_source(self):
         from app.datasets.explorer import ExplorerService
 

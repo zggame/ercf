@@ -1,15 +1,28 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+import re
 from typing import Any
 
 
 SOURCE_FANNIE_MAE = "fannie_mae"
 SOURCE_FREDDIE_MAC = "freddie_mac"
+SUPPORTED_SOURCES = frozenset({SOURCE_FANNIE_MAE, SOURCE_FREDDIE_MAC})
 
 FIXED_CHART_CAPITAL_FACTOR_BANDS = "capital_factor_bands"
 FIXED_CHART_PROPERTY_TYPE = "property_type_mix"
 FIXED_CHART_STATE = "state_mix"
+
+BREAKDOWN_DIMENSION_STATE = "state"
+BREAKDOWN_DIMENSION_PROPERTY_TYPE = "property_type"
+SUPPORTED_BREAKDOWN_DIMENSIONS = frozenset(
+    {
+        BREAKDOWN_DIMENSION_STATE,
+        BREAKDOWN_DIMENSION_PROPERTY_TYPE,
+    }
+)
+
+SNAPSHOT_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 
 SUMMARY_METRICS = {
     "original_upb_total": "original_upb",

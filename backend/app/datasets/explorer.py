@@ -15,6 +15,7 @@ from app.schema import (
 
 from .canonical import (
     BREAKDOWN_METRIC_TO_FIELD,
+    SUPPORTED_BREAKDOWN_DIMENSIONS,
     CAPITAL_FACTOR_BANDS,
     FIXED_CHART_CAPITAL_FACTOR_BANDS,
     FIXED_CHART_PROPERTY_TYPE,
@@ -58,7 +59,12 @@ class ExplorerService:
 
     @staticmethod
     def _matches_filters(row: dict[str, Any], filters: dict[str, list[Any]]) -> bool:
-        return all(row.get(key) in values for key, values in filters.items())
+        for key, values in filters.items():
+            if not values:
+                continue
+            if row.get(key) not in values:
+                return False
+        return True
 
     def _summarize(self, rows: list[dict[str, Any]]) -> CohortSummary:
         summary_values: dict[str, float | int] = {"loan_count": len(rows)}
@@ -90,6 +96,8 @@ class ExplorerService:
         dimension: str,
         metric: str,
     ) -> BreakdownResponse:
+        if dimension not in SUPPORTED_BREAKDOWN_DIMENSIONS:
+            raise ValueError(f"Unsupported breakdown dimension: {dimension}")
         if metric not in BREAKDOWN_METRIC_TO_FIELD:
             raise ValueError(f"Unsupported breakdown metric: {metric}")
 
@@ -159,6 +167,6 @@ class ExplorerService:
         return FixedChartSeries(
             points=[
                 FixedChartPoint(label=label, value=value)
-                for label, value in points_by_label.items()
+                for label, value in sorted(points_by_label.items())
             ]
         )
