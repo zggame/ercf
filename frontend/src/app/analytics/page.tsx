@@ -5,22 +5,34 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, ScatterChart, Scatter, ZAxis } from "recharts";
 import axios from "axios";
-import type { PortfolioSummary, EngineResult } from "@/types/api";
+import type { PortfolioSummary, EngineResult, LoanInput } from "@/types/api";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+type ScatterPoint = {
+  loan_id: string;
+  dscr: number;
+  ltv: number;
+  cap: number;
+};
 
 export default function AnalyticsPage() {
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
   const [results, setResults] = useState<EngineResult[]>([]);
+  const [scatterData, setScatterData] = useState<ScatterPoint[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [summaryRes, resultsRes] = await Promise.all([
-          axios.get<PortfolioSummary>("/api/portfolio/summary"),
-          axios.get<EngineResult[]>("/api/portfolio/results"),
+        const [summaryRes, resultsRes, portfolioRes] = await Promise.all([
+          axios.get<PortfolioSummary>(`${API_URL}/api/portfolio/summary`),
+          axios.get<EngineResult[]>(`${API_URL}/api/portfolio/results`),
+          axios.get<LoanInput[]>(`${API_URL}/api/portfolio`),
         ]);
         setSummary(summaryRes.data);
         setResults(resultsRes.data);
+        setScatterData(buildScatterData(portfolioRes.data, resultsRes.data));
       } catch (err) {
         console.error(err);
       } finally {
@@ -46,14 +58,6 @@ export default function AnalyticsPage() {
         avgCap: loans.length > 0 ? loans.reduce((sum, r) => sum + r.estimated_capital_factor, 0) / loans.length : 0,
       };
     });
-  };
-
-  const getScatterData = () => {
-    return results.map(r => ({
-      dscr: 1.25,
-      ltv: 0.65,
-      cap: r.estimated_capital_factor,
-    }));
   };
 
   if (loading) {
@@ -170,7 +174,7 @@ export default function AnalyticsPage() {
                     cursor={{strokeDasharray: '3 3'}}
                     contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)' }}
                   />
-                  <Scatter name="Loans" data={getScatterData()} fill="#10b981" opacity={0.7} />
+                  <Scatter name="Loans" data={scatterData} fill="#10b981" opacity={0.7} />
                 </ScatterChart>
               </ResponsiveContainer>
             </div>
@@ -179,4 +183,24 @@ export default function AnalyticsPage() {
       </div>
     </div>
   );
+}
+
+function buildScatterData(portfolio: LoanInput[], results: EngineResult[]): ScatterPoint[] {
+  const loanById = new Map(portfolio.map((loan) => [loan.loan_id, loan]));
+
+  return results.flatMap((result) => {
+    const loan = loanById.get(result.loan_id);
+    if (!loan) {
+      return [];
+    }
+
+    return [
+      {
+        loan_id: result.loan_id,
+        dscr: loan.dscr,
+        ltv: loan.ltv,
+        cap: result.estimated_capital_factor,
+      },
+    ];
+  });
 }
