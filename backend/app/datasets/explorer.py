@@ -16,6 +16,7 @@ from app.schema import (
 from .canonical import (
     BREAKDOWN_METRIC_TO_FIELD,
     SUPPORTED_BREAKDOWN_DIMENSIONS,
+    SUPPORTED_FILTER_FIELDS,
     CAPITAL_FACTOR_BANDS,
     FIXED_CHART_CAPITAL_FACTOR_BANDS,
     FIXED_CHART_PROPERTY_TYPE,
@@ -41,6 +42,7 @@ class ExplorerService:
         breakdown_dimension: str,
         breakdown_metric: str,
     ) -> CohortExplorerResponse:
+        self._validate_filters(filters)
         filtered = [
             row
             for row in self.rows
@@ -65,6 +67,15 @@ class ExplorerService:
             if row.get(key) not in values:
                 return False
         return True
+
+    @staticmethod
+    def _validate_filters(filters: dict[str, list[Any]]) -> None:
+        unsupported_fields = sorted(
+            key for key in filters if key not in SUPPORTED_FILTER_FIELDS
+        )
+        if unsupported_fields:
+            joined_fields = ", ".join(unsupported_fields)
+            raise ValueError(f"Unsupported cohort filter field(s): {joined_fields}")
 
     def _summarize(self, rows: list[dict[str, Any]]) -> CohortSummary:
         summary_values: dict[str, float | int] = {"loan_count": len(rows)}

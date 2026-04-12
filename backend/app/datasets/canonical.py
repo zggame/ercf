@@ -22,6 +22,15 @@ SUPPORTED_BREAKDOWN_DIMENSIONS = frozenset(
     }
 )
 
+SUPPORTED_FILTER_FIELDS = frozenset(
+    {
+        BREAKDOWN_DIMENSION_STATE,
+        BREAKDOWN_DIMENSION_PROPERTY_TYPE,
+        "is_affordable",
+        "msa",
+    }
+)
+
 SNAPSHOT_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 
 SUMMARY_METRICS = {

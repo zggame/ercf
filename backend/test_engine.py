@@ -791,6 +791,36 @@ class TestCuratedExplorer(unittest.TestCase):
             ["CA", "TX"],
         )
 
+    def test_unsupported_filter_key_is_rejected(self):
+        from app.datasets.explorer import ExplorerService
+
+        rows = [
+            {
+                "loan_id": "FRE-1",
+                "source": "freddie_mac",
+                "snapshot": "2025Q3",
+                "state": "CA",
+                "property_type": "Multifamily",
+                "current_upb": 100.0,
+                "original_upb": 120.0,
+                "dscr": 1.30,
+                "ltv": 0.60,
+                "estimated_capital_factor": 0.50,
+                "estimated_capital_amount": 50.0,
+            }
+        ]
+
+        service = ExplorerService(rows)
+
+        with self.assertRaisesRegex(ValueError, "Unsupported cohort filter field"):
+            service.build_cohort(
+                source="freddie_mac",
+                snapshot="2025Q3",
+                filters={"unsupported_field": ["x"]},
+                breakdown_dimension="state",
+                breakdown_metric="current_upb_total",
+            )
+
     def test_invalid_breakdown_dimension_is_rejected(self):
         from app.datasets.explorer import ExplorerService
 
