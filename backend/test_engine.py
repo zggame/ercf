@@ -636,5 +636,44 @@ class TestERCFEngine(unittest.TestCase):
         self.assertEqual(uploaded.total_units, 100)
         self.assertEqual(uploaded.qualifying_units, 50)
 
+
+class TestExplorerContracts(unittest.TestCase):
+    def test_portfolio_cohort_request_accepts_source_and_filters(self):
+        from app.schema import CohortRequest
+
+        request = CohortRequest(
+            source="freddie_mac",
+            snapshot="2025Q3",
+            filters={"state": ["CA"], "property_type": ["Multifamily"]},
+            breakdown_dimension="state",
+            breakdown_metric="current_upb_total",
+        )
+
+        self.assertEqual(request.source, "freddie_mac")
+        self.assertEqual(request.snapshot, "2025Q3")
+        self.assertEqual(request.filters["state"], ["CA"])
+
+    def test_explorer_response_contains_summary_charts_and_rows(self):
+        from app.schema import CohortExplorerResponse
+
+        response = CohortExplorerResponse(
+            cohort_label="Freddie Mac 2025Q3",
+            summary={
+                "loan_count": 2,
+                "original_upb_total": 300.0,
+                "current_upb_total": 250.0,
+                "wa_dscr": 1.2,
+                "wa_ltv": 0.65,
+                "wa_estimated_capital_factor": 0.5,
+                "total_estimated_capital_amount": 125.0,
+            },
+            fixed_charts={"capital_factor_bands": []},
+            breakdown={"dimension": "state", "metric": "current_upb_total", "rows": []},
+            drilldown_rows=[],
+        )
+
+        self.assertEqual(response.cohort_label, "Freddie Mac 2025Q3")
+        self.assertIn("capital_factor_bands", response.fixed_charts)
+
 if __name__ == '__main__':
     unittest.main()
