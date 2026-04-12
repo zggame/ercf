@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 import pandas as pd
@@ -7,9 +7,10 @@ import os
 import json
 import threading
 from pathlib import Path
-from pydantic import BaseModel
 from .datasets import CuratedStore, ExplorerService
 from .schema import (
+    CompareRequest,
+    CompareResponse,
     CohortExplorerResponse,
     CohortRequest,
     EngineResult,
@@ -176,52 +177,28 @@ def calculate_single_loan(loan: LoanInput):
 
 @app.post("/api/explorer/cohort", response_model=CohortExplorerResponse)
 def get_explorer_cohort(request: CohortRequest):
-    rows = curated_store.load_rows(request.source, request.snapshot)
-    service = ExplorerService(rows)
-    return service.build_cohort(
-        source=request.source,
-        snapshot=request.snapshot,
-        filters=request.filters,
-        breakdown_dimension=request.breakdown_dimension,
-        breakdown_metric=request.breakdown_metric,
-    )
+    try:
+        return _build_cohort_response(request)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-class CompareRequest(BaseModel):
-    left: CohortRequest
-    right: CohortRequest
-
-
-@app.post("/api/explorer/compare")
+@app.post("/api/explorer/compare", response_model=CompareResponse)
 def compare_explorer_cohorts(request: CompareRequest):
-    left_rows = curated_store.load_rows(request.left.source, request.left.snapshot)
-    left_service = ExplorerService(left_rows)
-    left_response = left_service.build_cohort(
-        source=request.left.source,
-        snapshot=request.left.snapshot,
-        filters=request.left.filters,
-        breakdown_dimension=request.left.breakdown_dimension,
-        breakdown_metric=request.left.breakdown_metric,
-    )
+    try:
+        left_response = _build_cohort_response(request.left)
+        right_response = _build_cohort_response(request.right)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    right_rows = curated_store.load_rows(request.right.source, request.right.snapshot)
-    right_service = ExplorerService(right_rows)
-    right_response = right_service.build_cohort(
-        source=request.right.source,
-        snapshot=request.right.snapshot,
-        filters=request.right.filters,
-        breakdown_dimension=request.right.breakdown_dimension,
-        breakdown_metric=request.right.breakdown_metric,
-    )
-
-    return {
-        "left": left_response.model_dump(),
-        "right": right_response.model_dump(),
+    return CompareResponse(
+        left=left_response,
+        right=right_response,
         **build_compare_response(
             left_response.summary.model_dump(),
             right_response.summary.model_dump(),
         ),
-    }
+    )
 
 
 def build_compare_response(
@@ -233,6 +210,18 @@ def build_compare_response(
             for key in left.keys()
         }
     }
+
+
+def _build_cohort_response(request: CohortRequest) -> CohortExplorerResponse:
+    rows = curated_store.load_rows(request.source, request.snapshot)
+    service = ExplorerService(rows)
+    return service.build_cohort(
+        source=request.source,
+        snapshot=request.snapshot,
+        filters=request.filters,
+        breakdown_dimension=request.breakdown_dimension,
+        breakdown_metric=request.breakdown_metric,
+    )
 
 
 @app.get("/api/portfolio", response_model=List[LoanInput])

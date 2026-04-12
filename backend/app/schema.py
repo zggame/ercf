@@ -232,3 +232,24 @@ class CohortExplorerResponse(BaseModel):
     fixed_charts: dict[str, FixedChartSeries]
     breakdown: BreakdownResponse
     drilldown_rows: list[DrilldownRow]
+
+
+class CompareRequest(BaseModel):
+    left: CohortRequest
+    right: CohortRequest
+
+
+class CohortComparisonDeltas(BaseModel):
+    loan_count: float
+    original_upb_total: float
+    current_upb_total: float
+    wa_dscr: float
+    wa_ltv: float
+    wa_estimated_capital_factor: float
+    total_estimated_capital_amount: float
+
+
+class CompareResponse(BaseModel):
+    left: CohortExplorerResponse
+    right: CohortExplorerResponse
+    deltas: CohortComparisonDeltas
