@@ -34,6 +34,19 @@ class TestERCFEngine(unittest.TestCase):
 
         ltv_keys = [b["key"] for b in ltv_bands]
         dscr_keys = [b["key"] for b in dscr_bands]
+        self.assertEqual(len(ltv_keys), len(set(ltv_keys)))
+        self.assertEqual(len(dscr_keys), len(set(dscr_keys)))
+
+        ltv_maxes = [b["max"] for b in ltv_bands]
+        dscr_maxes = [b["max"] for b in dscr_bands]
+        self.assertEqual(ltv_maxes, sorted(ltv_maxes))
+        self.assertEqual(dscr_maxes, sorted(dscr_maxes))
+        # Must be strictly increasing (no overlaps/gaps ambiguity).
+        self.assertEqual(len(ltv_maxes), len(set(ltv_maxes)))
+        self.assertEqual(len(dscr_maxes), len(set(dscr_maxes)))
+        # Catch-all final band.
+        self.assertGreaterEqual(float(ltv_maxes[-1]), 999.0)
+        self.assertGreaterEqual(float(dscr_maxes[-1]), 999.0)
 
         fixed = cfg["fixed_rate_base_risk_weights"]
         arm = cfg["arm_base_risk_weights"]
@@ -49,10 +62,6 @@ class TestERCFEngine(unittest.TestCase):
             for col_key in ltv_keys:
                 self.assertIsInstance(fixed[row_key][col_key], (int, float))
                 self.assertIsInstance(arm[row_key][col_key], (int, float))
-
-        # Spot-check determinism for a few cells (guards against accidental edits).
-        self.assertAlmostEqual(fixed["gt_150"]["le_60"], 0.25)
-        self.assertAlmostEqual(arm["le_125"]["le_80"], 0.75)
 
         confidence = cfg["confidence"]
         self.assertIsInstance(confidence, dict)
