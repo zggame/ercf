@@ -8,10 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Calculator as CalcIcon, AlertCircle, TrendingUp, DollarSign } from "lucide-react";
 import axios from "axios";
+import type { EngineResult } from "@/types/api";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export default function CalculatorPage() {
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<EngineResult | null>(null);
 
   const [formData, setFormData] = useState({
     loan_id: "LOAN-1001",
@@ -39,8 +42,7 @@ export default function CalculatorPage() {
         dscr: Number(formData.dscr),
         ltv: Number(formData.ltv)
       };
-      // For Next.js to communicate with local FastAPI during dev, we'll use localhost:8000
-      const res = await axios.post("http://localhost:8000/api/calculate", payload);
+      const res = await axios.post<EngineResult>(`${API_URL}/api/calculate`, payload);
       setResult(res.data);
     } catch (err) {
       console.error(err);

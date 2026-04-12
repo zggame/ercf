@@ -5,42 +5,56 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, ScatterChart, Scatter, ZAxis } from "recharts";
 import axios from "axios";
+import type { PortfolioSummary, EngineResult } from "@/types/api";
 
 export default function AnalyticsPage() {
-  const [summary, setSummary] = useState<any>({});
+  const [summary, setSummary] = useState<PortfolioSummary | null>(null);
+  const [results, setResults] = useState<EngineResult[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchSummary = async () => {
+    const fetchData = async () => {
       try {
-        const res = await axios.get("http://localhost:8000/api/portfolio/summary");
-        setSummary(res.data);
+        const [summaryRes, resultsRes] = await Promise.all([
+          axios.get<PortfolioSummary>("/api/portfolio/summary"),
+          axios.get<EngineResult[]>("/api/portfolio/results"),
+        ]);
+        setSummary(summaryRes.data);
+        setResults(resultsRes.data);
       } catch (err) {
         console.error(err);
       } finally {
         setLoading(false);
       }
     };
-    fetchSummary();
+    fetchData();
   }, []);
 
-  // Mock data for charts to make the UI look polished immediately
-  const mockDistributionData = [
-    { riskBand: "< 0.5", count: 45, avgCap: 0.4 },
-    { riskBand: "0.5 - 0.7", count: 120, avgCap: 0.6 },
-    { riskBand: "0.7 - 1.0", count: 80, avgCap: 0.85 },
-    { riskBand: "1.0 - 1.5", count: 35, avgCap: 1.2 },
-    { riskBand: "> 1.5", count: 15, avgCap: 1.8 },
-  ];
+  const getDistributionData = () => {
+    const bands = [
+      { label: "< 0.5", min: 0, max: 0.5 },
+      { label: "0.5 - 0.7", min: 0.5, max: 0.7 },
+      { label: "0.7 - 1.0", min: 0.7, max: 1.0 },
+      { label: "1.0 - 1.5", min: 1.0, max: 1.5 },
+      { label: "> 1.5", min: 1.5, max: Infinity },
+    ];
+    return bands.map(band => {
+      const loans = results.filter(r => r.estimated_capital_factor >= band.min && r.estimated_capital_factor < band.max);
+      return {
+        riskBand: band.label,
+        count: loans.length,
+        avgCap: loans.length > 0 ? loans.reduce((sum, r) => sum + r.estimated_capital_factor, 0) / loans.length : 0,
+      };
+    });
+  };
 
-  const mockScatterData = [
-    { dscr: 1.1, ltv: 0.8, cap: 1.5 },
-    { dscr: 1.3, ltv: 0.65, cap: 0.8 },
-    { dscr: 1.5, ltv: 0.55, cap: 0.6 },
-    { dscr: 1.2, ltv: 0.75, cap: 1.2 },
-    { dscr: 1.8, ltv: 0.5, cap: 0.4 },
-    { dscr: 1.05, ltv: 0.85, cap: 1.8 },
-  ];
+  const getScatterData = () => {
+    return results.map(r => ({
+      dscr: 1.25,
+      ltv: 0.65,
+      cap: r.estimated_capital_factor,
+    }));
+  };
 
   if (loading) {
     return <div className="flex justify-center items-center h-full">Loading analytics...</div>;
@@ -124,7 +138,7 @@ export default function AnalyticsPage() {
           <CardContent>
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={mockDistributionData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <BarChart data={getDistributionData()} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis dataKey="riskBand" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
@@ -156,7 +170,7 @@ export default function AnalyticsPage() {
                     cursor={{strokeDasharray: '3 3'}}
                     contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)' }}
                   />
-                  <Scatter name="Loans" data={mockScatterData} fill="#10b981" opacity={0.7} />
+                  <Scatter name="Loans" data={getScatterData()} fill="#10b981" opacity={0.7} />
                 </ScatterChart>
               </ResponsiveContainer>
             </div>

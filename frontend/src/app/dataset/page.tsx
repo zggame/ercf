@@ -6,11 +6,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Database, Upload, CheckCircle2, FileUp } from "lucide-react";
 import axios from "axios";
+import type { UploadResponse } from "@/types/api";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export default function DatasetPage() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<any>(null);
+  const [status, setStatus] = useState<UploadResponse | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -25,7 +28,7 @@ export default function DatasetPage() {
     formData.append("file", file);
 
     try {
-      const res = await axios.post("http://localhost:8000/api/upload", formData, {
+      const res = await axios.post<UploadResponse>(`${API_URL}/api/upload`, formData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
       setStatus(res.data);
