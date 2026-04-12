@@ -62,7 +62,7 @@ def load_portfolio() -> List[LoanInput]:
             return [LoanInput(**item) for item in data]
     except Exception as exc:
         print(f"Failed to load persisted portfolio from {DB_PATH}: {exc}")
-        return _get_default_portfolio()
+        return []
 
 
 def save_portfolio(portfolio: List[LoanInput]) -> None:
