@@ -653,7 +653,15 @@ class TestExplorerContracts(unittest.TestCase):
         self.assertEqual(request.snapshot, "2025Q3")
         self.assertEqual(request.filters["state"], ["CA"])
 
-    def test_explorer_response_contains_summary_charts_and_rows(self):
+    def test_portfolio_cohort_request_uses_default_breakdown_contract(self):
+        from app.schema import CohortRequest
+
+        request = CohortRequest(source="freddie_mac", snapshot="2025Q3")
+
+        self.assertEqual(request.breakdown_dimension, "state")
+        self.assertEqual(request.breakdown_metric, "current_upb_total")
+
+    def test_explorer_response_accepts_nested_structured_models(self):
         from app.schema import CohortExplorerResponse
 
         response = CohortExplorerResponse(
@@ -667,13 +675,29 @@ class TestExplorerContracts(unittest.TestCase):
                 "wa_estimated_capital_factor": 0.5,
                 "total_estimated_capital_amount": 125.0,
             },
-            fixed_charts={"capital_factor_bands": []},
-            breakdown={"dimension": "state", "metric": "current_upb_total", "rows": []},
+            fixed_charts={
+                "capital_factor_bands": {
+                    "points": [
+                        {"label": "0.0-0.5", "value": 10.0},
+                        {"label": "0.5-1.0", "value": 5.0},
+                    ]
+                }
+            },
+            breakdown={
+                "dimension": "state",
+                "metric": "current_upb_total",
+                "rows": [
+                    {"key": "CA", "value": 150.0},
+                    {"key": "TX", "value": 100.0},
+                ],
+            },
             drilldown_rows=[],
         )
 
         self.assertEqual(response.cohort_label, "Freddie Mac 2025Q3")
-        self.assertIn("capital_factor_bands", response.fixed_charts)
+        self.assertEqual(response.fixed_charts["capital_factor_bands"].points[0].label, "0.0-0.5")
+        self.assertEqual(response.breakdown.dimension, "state")
+        self.assertEqual(response.breakdown.rows[1].key, "TX")
 
 if __name__ == '__main__':
     unittest.main()

@@ -198,6 +198,21 @@ class BreakdownRow(BaseModel):
     value: float
 
 
+class FixedChartPoint(BaseModel):
+    label: str
+    value: float
+
+
+class FixedChartSeries(BaseModel):
+    points: list[FixedChartPoint]
+
+
+class BreakdownResponse(BaseModel):
+    dimension: str
+    metric: str
+    rows: list[BreakdownRow]
+
+
 class DrilldownRow(BaseModel):
     loan_id: str
     source: str
@@ -214,6 +229,6 @@ class DrilldownRow(BaseModel):
 class CohortExplorerResponse(BaseModel):
     cohort_label: str
     summary: CohortSummary
-    fixed_charts: dict[str, list[dict[str, float | str]]]
-    breakdown: dict[str, str | list[BreakdownRow]]
+    fixed_charts: dict[str, FixedChartSeries]
+    breakdown: BreakdownResponse
     drilldown_rows: list[DrilldownRow]
