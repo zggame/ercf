@@ -699,5 +699,92 @@ class TestExplorerContracts(unittest.TestCase):
         self.assertEqual(response.breakdown.dimension, "state")
         self.assertEqual(response.breakdown.rows[1].key, "TX")
 
+
+class TestCuratedExplorer(unittest.TestCase):
+    def test_curated_store_loads_rows_from_snapshot_json(self):
+        from app.datasets.curated_store import CuratedStore
+
+        rows = [
+            {
+                "loan_id": "FNM-1",
+                "source": "fannie_mae",
+                "snapshot": "2025Q3",
+                "state": "NY",
+                "property_type": "Multifamily",
+                "current_upb": 123.0,
+                "original_upb": 150.0,
+                "dscr": 1.25,
+                "ltv": 0.62,
+                "estimated_capital_factor": 0.55,
+                "estimated_capital_amount": 67.65,
+            }
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source_dir = root / "fannie_mae"
+            source_dir.mkdir(parents=True, exist_ok=True)
+            snapshot_path = source_dir / "2025Q3.json"
+            snapshot_path.write_text(json.dumps(rows), encoding="utf-8")
+
+            loaded_rows = CuratedStore(root).load_rows("fannie_mae", "2025Q3")
+
+        self.assertEqual(loaded_rows, rows)
+
+    def test_explorer_service_filters_and_summarizes_a_curated_source(self):
+        from app.datasets.explorer import ExplorerService
+
+        rows = [
+            {
+                "loan_id": "FRE-1",
+                "source": "freddie_mac",
+                "snapshot": "2025Q3",
+                "state": "CA",
+                "property_type": "Multifamily",
+                "current_upb": 100.0,
+                "original_upb": 120.0,
+                "dscr": 1.30,
+                "ltv": 0.60,
+                "estimated_capital_factor": 0.50,
+                "estimated_capital_amount": 50.0,
+            },
+            {
+                "loan_id": "FRE-2",
+                "source": "freddie_mac",
+                "snapshot": "2025Q3",
+                "state": "TX",
+                "property_type": "Seniors Housing",
+                "current_upb": 200.0,
+                "original_upb": 220.0,
+                "dscr": 1.10,
+                "ltv": 0.75,
+                "estimated_capital_factor": 0.75,
+                "estimated_capital_amount": 150.0,
+            },
+        ]
+
+        service = ExplorerService(rows)
+        response = service.build_cohort(
+            source="freddie_mac",
+            snapshot="2025Q3",
+            filters={"state": ["CA"]},
+            breakdown_dimension="state",
+            breakdown_metric="current_upb_total",
+        )
+
+        self.assertEqual(response.summary.loan_count, 1)
+        self.assertEqual(response.summary.current_upb_total, 100.0)
+        self.assertEqual(response.summary.original_upb_total, 120.0)
+        self.assertEqual(response.summary.wa_dscr, 1.30)
+        self.assertEqual(response.summary.wa_ltv, 0.60)
+        self.assertEqual(response.summary.wa_estimated_capital_factor, 0.50)
+        self.assertEqual(response.summary.total_estimated_capital_amount, 50.0)
+        self.assertEqual(response.breakdown.dimension, "state")
+        self.assertEqual(response.breakdown.metric, "current_upb_total")
+        self.assertEqual(response.breakdown.rows[0].key, "CA")
+        self.assertEqual(response.breakdown.rows[0].value, 100.0)
+        self.assertEqual(response.drilldown_rows[0].loan_id, "FRE-1")
+        self.assertIn("capital_factor_bands", response.fixed_charts)
+
 if __name__ == '__main__':
     unittest.main()
