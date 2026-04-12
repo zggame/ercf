@@ -2,6 +2,10 @@
 .next/
 .next/**
 
+# Local workspace files
+/.codex
+/package-lock.json
+
 # Python
 __pycache__/
 *.py[cod]
