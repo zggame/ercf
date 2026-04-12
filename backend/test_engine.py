@@ -12,6 +12,61 @@ class TestERCFEngine(unittest.TestCase):
     def setUp(self):
         self.engine = ERCFEngine()
 
+    def test_engine_result_exposes_confidence_and_rule_fields(self):
+        loan = LoanInput(
+            loan_id="RULE-INPUT-1",
+            original_upb=1000,
+            current_upb=1000,
+            original_loan_amount=1000,
+            dscr=1.4,
+            ltv=0.6,
+            rate_type="fixed",
+            interest_only=False,
+            original_term_months=120,
+            amortization_term_months=360,
+            payment_performance="current",
+            property_type="Multifamily",
+            government_subsidy_type="lihtc",
+            qualifying_unit_share=0.25,
+            total_units=100,
+            qualifying_units=25,
+        )
+
+        # Contract: new rule inputs must be present as real fields (not ignored extras).
+        self.assertTrue(hasattr(loan, "rate_type"))
+        self.assertEqual(loan.rate_type, "fixed")
+        self.assertTrue(hasattr(loan, "original_loan_amount"))
+        self.assertEqual(loan.original_loan_amount, 1000)
+
+        result = self.engine.calculate_loan(loan)
+
+        # Contract: existing fields remain present for current UI.
+        self.assertTrue(hasattr(result, "estimated_capital_factor"))
+        self.assertTrue(hasattr(result, "estimated_capital_amount"))
+        self.assertTrue(hasattr(result, "data_quality_score"))
+
+        # Contract: result exposes placeholders for the expanded ERCF fields.
+        self.assertTrue(hasattr(result, "base_risk_weight"))
+        self.assertTrue(hasattr(result, "payment_performance_multiplier"))
+        self.assertTrue(hasattr(result, "interest_only_multiplier"))
+        self.assertTrue(hasattr(result, "term_multiplier"))
+        self.assertTrue(hasattr(result, "amortization_multiplier"))
+        self.assertTrue(hasattr(result, "loan_size_multiplier"))
+        self.assertTrue(hasattr(result, "special_product_multiplier"))
+        self.assertTrue(hasattr(result, "subsidy_multiplier"))
+        self.assertTrue(hasattr(result, "combined_multiplier"))
+        self.assertTrue(hasattr(result, "floor_value"))
+        self.assertTrue(hasattr(result, "floor_applied"))
+
+        self.assertTrue(hasattr(result, "confidence_score"))
+        self.assertTrue(hasattr(result, "confidence_threshold"))
+        self.assertTrue(hasattr(result, "missing_input_count"))
+        self.assertTrue(hasattr(result, "missing_inputs"))
+        self.assertTrue(hasattr(result, "inferred_inputs"))
+        self.assertTrue(hasattr(result, "result_available"))
+        self.assertTrue(hasattr(result, "final_risk_weight"))
+        self.assertTrue(hasattr(result, "capital_amount"))
+
     def test_basic_calculation(self):
         loan = LoanInput(
             loan_id="TEST-1",

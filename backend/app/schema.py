@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional, List
 from datetime import date
 
@@ -39,8 +39,30 @@ class LoanInput(BaseModel):
     underwritten_noi: Optional[float] = None
     valuation_amount: Optional[float] = None
 
+    # ERCF loan-level rule inputs (expanded contract; engine support comes in later tasks)
+    original_loan_amount: Optional[float] = Field(default=None, gt=0)
+    rate_type: Optional[str] = None  # "fixed" | "arm"
+    interest_only: Optional[bool] = None
+    original_term_months: Optional[int] = Field(default=None, gt=0)
+    amortization_term_months: Optional[int] = Field(default=None, gt=0)
+    payment_performance: Optional[str] = None
+    government_subsidy_type: Optional[str] = None
+    qualifying_unit_share: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    total_units: Optional[int] = Field(default=None, ge=0)
+    qualifying_units: Optional[int] = Field(default=None, ge=0)
+
     # Status
     delinquency_status: Optional[str] = "Current"
+
+    @field_validator("rate_type")
+    @classmethod
+    def _validate_rate_type(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        v = v.strip().lower()
+        if v not in ("fixed", "arm"):
+            raise ValueError("rate_type must be 'fixed' or 'arm'")
+        return v
 
 
 class EngineResult(BaseModel):
@@ -53,6 +75,48 @@ class EngineResult(BaseModel):
     property_multiplier: float
     affordability_multiplier: float
     data_quality_score: int  # 0-100
+
+    # ERCF loan-level rule outputs (expanded contract; engine support comes in later tasks)
+    base_risk_weight: Optional[float] = None
+    payment_performance_multiplier: float = 1.0
+    interest_only_multiplier: float = 1.0
+    term_multiplier: float = 1.0
+    amortization_multiplier: float = 1.0
+    loan_size_multiplier: float = 1.0
+    special_product_multiplier: float = 1.0
+    subsidy_multiplier: float = 1.0
+    combined_multiplier: float = 1.0
+    floor_value: float = 0.20
+    floor_applied: bool = False
+
+    confidence_score: int = Field(default=100, ge=0, le=100)
+    confidence_threshold: int = Field(default=0, ge=0, le=100)
+    missing_input_count: int = Field(default=0, ge=0)
+    missing_inputs: List[str] = Field(default_factory=list)
+    inferred_inputs: List[str] = Field(default_factory=list)
+    result_available: bool = True
+
+    final_risk_weight: Optional[float] = None
+    capital_amount: Optional[float] = None
+
+    @model_validator(mode="after")
+    def _backfill_ercf_placeholders(self) -> "EngineResult":
+        # Keep today's proxy engine working while providing stable fields for the
+        # upgraded ERCF evaluator (implemented in later tasks).
+        if self.base_risk_weight is None:
+            self.base_risk_weight = self.base_weight
+        if self.combined_multiplier == 1.0:
+            self.combined_multiplier = (
+                self.ltv_multiplier
+                * self.dscr_multiplier
+                * self.property_multiplier
+                * self.affordability_multiplier
+            )
+        if self.final_risk_weight is None:
+            self.final_risk_weight = self.estimated_capital_factor
+        if self.capital_amount is None:
+            self.capital_amount = self.estimated_capital_amount
+        return self
 
 
 class LoanWithResult(BaseModel):

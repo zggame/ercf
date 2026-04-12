@@ -27,6 +27,18 @@ export interface LoanInput {
   underwritten_noi?: number;
   valuation_amount?: number;
   delinquency_status?: string;
+
+  // ERCF loan-level rule inputs (expanded contract; engine support comes later)
+  original_loan_amount?: number;
+  rate_type?: "fixed" | "arm";
+  interest_only?: boolean;
+  original_term_months?: number;
+  amortization_term_months?: number;
+  payment_performance?: string;
+  government_subsidy_type?: string;
+  qualifying_unit_share?: number;
+  total_units?: number;
+  qualifying_units?: number;
 }
 
 export interface EngineResult {
@@ -39,6 +51,29 @@ export interface EngineResult {
   property_multiplier: number;
   affordability_multiplier: number;
   data_quality_score: number;
+
+  // ERCF loan-level rule outputs (expanded contract; engine support comes later)
+  base_risk_weight: number | null;
+  payment_performance_multiplier: number;
+  interest_only_multiplier: number;
+  term_multiplier: number;
+  amortization_multiplier: number;
+  loan_size_multiplier: number;
+  special_product_multiplier: number;
+  subsidy_multiplier: number;
+  combined_multiplier: number;
+  floor_value: number;
+  floor_applied: boolean;
+
+  confidence_score: number;
+  confidence_threshold: number;
+  missing_input_count: number;
+  missing_inputs: string[];
+  inferred_inputs: string[];
+  result_available: boolean;
+
+  final_risk_weight: number | null;
+  capital_amount: number | null;
 }
 
 export interface LoanWithResult {
