@@ -196,6 +196,32 @@ export default function CalculatorPage() {
                     <p className="text-xs text-amber-700 mt-1">Some optional inputs (e.g., occupancy rate, valuation amount) are missing. This relies on engine defaults.</p>
                   </div>
                 </div>
+
+                {!result.result_available && (
+                  <div className="mt-4 p-4 bg-red-50 rounded-lg border border-red-200 flex gap-3">
+                    <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                    <div>
+                      <h5 className="text-sm font-semibold text-red-800">ERCF Rule Result Unavailable</h5>
+                      <p className="text-xs text-red-700 mt-1">
+                        Confidence score ({result.confidence_score}) is below the threshold ({result.confidence_threshold}). 
+                        Missing inputs: {result.missing_inputs.join(", ") || "none"}.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {result.result_available && result.final_risk_weight !== null && (
+                  <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <h5 className="text-sm font-semibold text-blue-800">Loan-Level ERCF Result</h5>
+                    <div className="mt-2 flex justify-between items-center">
+                      <span className="text-xs text-blue-700">Final Risk Weight</span>
+                      <span className="text-lg font-bold text-blue-900">{(result.final_risk_weight * 100).toFixed(2)}%</span>
+                    </div>
+                    {result.floor_applied && (
+                      <p className="text-xs text-blue-700 mt-1">Floor applied (minimum 20% risk weight)</p>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </>

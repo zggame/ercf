@@ -81,3 +81,11 @@ confidence:
     interest_only: 10
     original_term_months: 10
     amortization_term_months: 10
+
+subsidy:
+  qualifying_types:
+    - lihtc
+    - section_8
+    - section_515
+    - low_income_housing_tax_credit
+    - state_local

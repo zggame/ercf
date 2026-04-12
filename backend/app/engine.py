@@ -3,17 +3,23 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 from .schema import LoanInput, EngineResult
 
-CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'ercf_config.yaml')
+CONFIG_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)), "ercf_config.yaml"
+)
+
 
 def load_config():
-    with open(CONFIG_PATH, 'r') as f:
+    with open(CONFIG_PATH, "r") as f:
         return yaml.safe_load(f)
+
 
 class ERCFEngine:
     def __init__(self):
         self.config = load_config()
 
-    def _compute_confidence(self, loan: LoanInput) -> Tuple[int, int, List[str], List[str], List[str], bool]:
+    def _compute_confidence(
+        self, loan: LoanInput
+    ) -> Tuple[int, int, List[str], List[str], List[str], bool]:
         """
         Conservative, deterministic confidence scoring based on config-driven penalties.
 
@@ -35,7 +41,10 @@ class ERCFEngine:
 
         # Inference: we can derive `rate_type` from legacy `is_fixed_rate`, but we
         # still treat the missing explicit input as a confidence penalty.
-        if getattr(loan, "rate_type", None) is None and getattr(loan, "is_fixed_rate", None) is not None:
+        if (
+            getattr(loan, "rate_type", None) is None
+            and getattr(loan, "is_fixed_rate", None) is not None
+        ):
             inferred_inputs.append("rate_type")
             notes.append("Inferred rate_type from is_fixed_rate")
 
@@ -73,9 +82,18 @@ class ERCFEngine:
         if not result_available:
             notes.append("Result suppressed: confidence below threshold")
 
-        return (score, threshold, missing_inputs, inferred_inputs, notes, result_available)
+        return (
+            score,
+            threshold,
+            missing_inputs,
+            inferred_inputs,
+            notes,
+            result_available,
+        )
 
-    def _band_key_for_value(self, value: float, bands: List[Dict[str, Any]]) -> Optional[str]:
+    def _band_key_for_value(
+        self, value: float, bands: List[Dict[str, Any]]
+    ) -> Optional[str]:
         if value is None or not bands:
             return None
         last_valid_key: Optional[str] = None
@@ -122,13 +140,19 @@ class ERCFEngine:
             else:
                 rate_type = "fixed"
 
-        table = cfg["arm_base_risk_weights"] if rate_type == "arm" else cfg["fixed_rate_base_risk_weights"]
+        table = (
+            cfg["arm_base_risk_weights"]
+            if rate_type == "arm"
+            else cfg["fixed_rate_base_risk_weights"]
+        )
         try:
             return float(table[dscr_key][ltv_key])
         except Exception:
             return None
 
-    def _core_multipliers(self, loan: LoanInput) -> Tuple[float, float, float, float, float, float]:
+    def _core_multipliers(
+        self, loan: LoanInput
+    ) -> Tuple[float, float, float, float, float, float]:
         # These are placeholders for the fully-configurable FHFA multiplier tables
         # (wired up in later tasks). For now, we compute stable, monotonic loan-level
         # multipliers without affecting the legacy proxy fields.
@@ -137,7 +161,18 @@ class ERCFEngine:
             payment_performance_multiplier = 1.0
         elif perf in ("30", "30dq", "30_dq", "dq30"):
             payment_performance_multiplier = 1.10
-        elif perf in ("60", "60dq", "60_dq", "dq60", "60_plus", "60plus", "90", "90dq", "nonperforming", "default"):
+        elif perf in (
+            "60",
+            "60dq",
+            "60_dq",
+            "dq60",
+            "60_plus",
+            "60plus",
+            "90",
+            "90dq",
+            "nonperforming",
+            "default",
+        ):
             payment_performance_multiplier = 1.25
         else:
             payment_performance_multiplier = 1.0
@@ -188,31 +223,57 @@ class ERCFEngine:
             special_product_multiplier,
         )
 
+    def _subsidy_multiplier(self, loan: LoanInput) -> float:
+        subsidy_cfg = self.config.get("subsidy") or {}
+        qualifying_types = subsidy_cfg.get("qualifying_types") or []
+        if loan.government_subsidy_type not in qualifying_types:
+            return 1.0
+        share = loan.qualifying_unit_share
+        if share is None and loan.qualifying_units is not None and loan.total_units:
+            share = loan.qualifying_units / loan.total_units
+        if share is None:
+            return 1.0
+        return (share * 0.6) + ((1 - share) * 1.0)
+
     def calculate_loan(self, loan: LoanInput) -> EngineResult:
-        base_weight = self.config.get('base_risk_weight', 0.5)
+        base_weight = self.config.get("base_risk_weight", 0.5)
 
         ltv_multiplier = 1.0
-        for band in self.config.get('ltv_multipliers', []):
-            if loan.ltv <= band['max']:
-                ltv_multiplier = band['multiplier']
+        for band in self.config.get("ltv_multipliers", []):
+            if loan.ltv <= band["max"]:
+                ltv_multiplier = band["multiplier"]
                 break
 
         dscr_multiplier = 1.0
-        for band in self.config.get('dscr_multipliers', []):
-            if loan.dscr <= band['max']:
-                dscr_multiplier = band['multiplier']
+        for band in self.config.get("dscr_multipliers", []):
+            if loan.dscr <= band["max"]:
+                dscr_multiplier = band["multiplier"]
                 break
 
-        property_multiplier = self.config.get('property_type_multipliers', {}).get(loan.property_type, 1.0)
+        property_multiplier = self.config.get("property_type_multipliers", {}).get(
+            loan.property_type, 1.0
+        )
 
-        affordability_multiplier = self.config.get('affordability_multiplier', 0.9) if loan.is_affordable else 1.0
+        affordability_multiplier = (
+            self.config.get("affordability_multiplier", 0.9)
+            if loan.is_affordable
+            else 1.0
+        )
 
-        final_factor = base_weight * ltv_multiplier * dscr_multiplier * property_multiplier * affordability_multiplier
+        final_factor = (
+            base_weight
+            * ltv_multiplier
+            * dscr_multiplier
+            * property_multiplier
+            * affordability_multiplier
+        )
 
         # very basic data quality score
         score = 100
-        if not loan.occupancy_rate: score -= 10
-        if not loan.valuation_amount: score -= 10
+        if not loan.occupancy_rate:
+            score -= 10
+        if not loan.valuation_amount:
+            score -= 10
 
         # New, additive loan-level ERCF fields (Task 3). These do NOT change the
         # legacy proxy `estimated_capital_factor` or `estimated_capital_amount`.
@@ -225,7 +286,7 @@ class ERCFEngine:
             loan_size_multiplier,
             special_product_multiplier,
         ) = self._core_multipliers(loan)
-        subsidy_multiplier = 1.0  # wired up in Task 5
+        subsidy_multiplier = self._subsidy_multiplier(loan)
         combined_multiplier = (
             payment_performance_multiplier
             * interest_only_multiplier

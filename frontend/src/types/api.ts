@@ -90,6 +90,13 @@ export interface PortfolioSummary {
   wa_ltv: number;
   wa_estimated_capital_factor: number;
   total_estimated_capital_amount: number;
+  loans_with_available_results: number;
+  loans_with_missing_results: number;
+  average_confidence_score: number;
+  median_confidence_score: number;
+  minimum_confidence_score: number;
+  total_missing_input_count: number;
+  missing_input_counts_by_field: Record<string, number>;
 }
 
 export interface UploadResponse {

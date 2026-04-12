@@ -166,3 +166,10 @@ class PortfolioSummary(BaseModel):
     wa_ltv: float
     wa_estimated_capital_factor: float
     total_estimated_capital_amount: float
+    loans_with_available_results: int = 0
+    loans_with_missing_results: int = 0
+    average_confidence_score: float = 0.0
+    median_confidence_score: float = 0.0
+    minimum_confidence_score: int = 0
+    total_missing_input_count: int = 0
+    missing_input_counts_by_field: dict[str, int] = {}

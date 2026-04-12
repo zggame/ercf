@@ -127,6 +127,53 @@ export default function MethodologyPage() {
           </Card>
         </div>
       </div>
+
+      <div className="pt-6">
+        <h2 className="text-2xl font-bold text-slate-900 mb-2">Confidence Scoring & Result Suppression</h2>
+        <p className="text-slate-600 mb-6">How the loan-level ERCF rule evaluates input completeness and suppresses uncertain results.</p>
+
+        <div className="space-y-4">
+          <Card className="shadow-sm border-slate-200">
+            <CardHeader className="py-4">
+              <CardTitle className="text-base">Confidence Score</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-slate-600">
+              The confidence score (0-100) reflects how many rule-critical loan inputs are present. 
+              Missing fields such as rate_type, payment_performance, original_loan_amount, interest_only, 
+              original_term_months, and amortization_term_months reduce the score by configured penalties.
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm border-slate-200">
+            <CardHeader className="py-4">
+              <CardTitle className="text-base">Result Suppression</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-slate-600">
+              When the confidence score falls below the configured threshold (default: 70), the loan-level 
+              ERCF result is suppressed and marked unavailable. The legacy proxy results remain accessible 
+              regardless of confidence. Subsidy treatment and floor logic only apply when results are available.
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm border-slate-200">
+            <CardHeader className="py-4">
+              <CardTitle className="text-base">Subsidy Multiplier</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-slate-600">
+              Loans with qualifying government subsidy types (LIHTC, Section 8, Section 515, etc.) receive 
+              a subsidy multiplier based on the share of qualifying units. A 100% qualifying share yields 
+              a 0.6 multiplier; partial shares scale proportionally.
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm border-slate-200">
+            <CardHeader className="py-4">
+              <CardTitle className="text-base">Risk Weight Floor</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-slate-600">
+              The loan-level ERCF rule enforces a minimum 20% risk weight floor. When the calculated 
+              adjusted risk weight falls below this threshold, the floor is applied and flagged in the result.
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

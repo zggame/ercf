@@ -128,6 +128,41 @@ export default function AnalyticsPage() {
         </Card>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="shadow-sm bg-amber-50 border-amber-100">
+          <CardContent className="p-6">
+            <p className="text-sm font-medium text-amber-800">Avg Confidence</p>
+            <h3 className="text-2xl font-bold text-amber-900 mt-2">
+              {summary?.average_confidence_score?.toFixed(0) ?? "0"}%
+            </h3>
+          </CardContent>
+        </Card>
+        <Card className="shadow-sm">
+          <CardContent className="p-6 flex justify-between items-center">
+            <span className="text-sm font-medium text-slate-500">Results Available</span>
+            <span className="text-lg font-semibold">
+              {summary?.loans_with_available_results ?? 0}/{summary?.loan_count ?? 0}
+            </span>
+          </CardContent>
+        </Card>
+        <Card className="shadow-sm">
+          <CardContent className="p-6 flex justify-between items-center">
+            <span className="text-sm font-medium text-slate-500">Min Confidence</span>
+            <span className="text-lg font-semibold">
+              {summary?.minimum_confidence_score ?? 0}
+            </span>
+          </CardContent>
+        </Card>
+        <Card className="shadow-sm">
+          <CardContent className="p-6 flex justify-between items-center">
+            <span className="text-sm font-medium text-slate-500">Total Missing Inputs</span>
+            <span className="text-lg font-semibold">
+              {summary?.total_missing_input_count ?? 0}
+            </span>
+          </CardContent>
+        </Card>
+      </div>
+
       <Separator />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

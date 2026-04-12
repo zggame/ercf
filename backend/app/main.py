@@ -126,6 +126,33 @@ def get_portfolio_summary():
     )
     total_cap = sum(res.estimated_capital_amount for res in results)
 
+    confidence_scores = [res.confidence_score for res in results]
+    loans_with_available = sum(1 for res in results if res.result_available)
+    loans_with_missing = len(results) - loans_with_available
+    avg_confidence = (
+        sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0.0
+    )
+    min_confidence = min(confidence_scores) if confidence_scores else 0
+    sorted_scores = sorted(confidence_scores)
+    mid = len(sorted_scores) // 2
+    median_confidence = (
+        (
+            (sorted_scores[mid - 1] + sorted_scores[mid]) / 2
+            if len(sorted_scores) % 2 == 0 and len(sorted_scores) > 1
+            else sorted_scores[mid]
+        )
+        if sorted_scores
+        else 0.0
+    )
+
+    missing_counts = [res.missing_input_count for res in results]
+    total_missing = sum(missing_counts)
+
+    field_counts: dict[str, int] = {}
+    for res in results:
+        for field_name in res.missing_inputs:
+            field_counts[field_name] = field_counts.get(field_name, 0) + 1
+
     return PortfolioSummary(
         loan_count=len(PORTFOLIO),
         original_upb_total=sum(loan.original_upb for loan in PORTFOLIO),
@@ -134,6 +161,13 @@ def get_portfolio_summary():
         wa_ltv=wa_ltv,
         wa_estimated_capital_factor=wa_factor,
         total_estimated_capital_amount=total_cap,
+        loans_with_available_results=loans_with_available,
+        loans_with_missing_results=loans_with_missing,
+        average_confidence_score=avg_confidence,
+        median_confidence_score=median_confidence,
+        minimum_confidence_score=min_confidence,
+        total_missing_input_count=total_missing,
+        missing_input_counts_by_field=field_counts,
     )
 
 
