@@ -5,6 +5,7 @@
 # Local workspace files
 /.codex
 /package-lock.json
+/tmp-worktree/
 
 # Python
 __pycache__/
