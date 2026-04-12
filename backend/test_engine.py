@@ -37,6 +37,8 @@ class TestERCFEngine(unittest.TestCase):
         self.assertEqual(loan.rate_type, "fixed")
         self.assertTrue(hasattr(loan, "original_loan_amount"))
         self.assertEqual(loan.original_loan_amount, 1000)
+        self.assertTrue(hasattr(loan, "government_subsidy_type"))
+        self.assertEqual(loan.government_subsidy_type, "lihtc")
 
         result = self.engine.calculate_loan(loan)
 
@@ -63,6 +65,7 @@ class TestERCFEngine(unittest.TestCase):
         self.assertTrue(hasattr(result, "missing_input_count"))
         self.assertTrue(hasattr(result, "missing_inputs"))
         self.assertTrue(hasattr(result, "inferred_inputs"))
+        self.assertTrue(hasattr(result, "confidence_notes"))
         self.assertTrue(hasattr(result, "result_available"))
         self.assertTrue(hasattr(result, "final_risk_weight"))
         self.assertTrue(hasattr(result, "capital_amount"))

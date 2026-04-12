@@ -64,6 +64,41 @@ class LoanInput(BaseModel):
             raise ValueError("rate_type must be 'fixed' or 'arm'")
         return v
 
+    @field_validator("government_subsidy_type")
+    @classmethod
+    def _validate_government_subsidy_type(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        v = v.strip().lower()
+        if v == "":
+            return None
+
+        # Keep this constrained/categorical while remaining backward compatible:
+        # unknown values do not error; they simply fall back to "no subsidy".
+        alias_map = {
+            "lihtc": "lihtc",
+            "low_income_housing_tax_credit": "lihtc",
+            "low-income housing tax credit": "lihtc",
+            "pbra": "pbra",
+            "project_based_rental_assistance": "pbra",
+            "project-based rental assistance": "pbra",
+            "section8": "pbra",
+            "section_8": "pbra",
+            "section-8": "pbra",
+            "section515": "section_515",
+            "section_515": "section_515",
+            "state_local": "state_local",
+            "state-local": "state_local",
+            "state / local": "state_local",
+        }
+        normalized = alias_map.get(v)
+        allowed = {"lihtc", "pbra", "section_515", "state_local"}
+        if normalized in allowed:
+            return normalized
+        if v in allowed:
+            return v
+        return None
+
 
 class EngineResult(BaseModel):
     loan_id: str
@@ -94,6 +129,7 @@ class EngineResult(BaseModel):
     missing_input_count: int = Field(default=0, ge=0)
     missing_inputs: List[str] = Field(default_factory=list)
     inferred_inputs: List[str] = Field(default_factory=list)
+    confidence_notes: List[str] = Field(default_factory=list)
     result_available: bool = True
 
     final_risk_weight: Optional[float] = None

@@ -35,7 +35,7 @@ export interface LoanInput {
   original_term_months?: number;
   amortization_term_months?: number;
   payment_performance?: string;
-  government_subsidy_type?: string;
+  government_subsidy_type?: "lihtc" | "pbra" | "section_515" | "state_local";
   qualifying_unit_share?: number;
   total_units?: number;
   qualifying_units?: number;
@@ -70,6 +70,7 @@ export interface EngineResult {
   missing_input_count: number;
   missing_inputs: string[];
   inferred_inputs: string[];
+  confidence_notes: string[];
   result_available: boolean;
 
   final_risk_weight: number | null;
