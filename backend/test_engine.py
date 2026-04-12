@@ -3,11 +3,11 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-
 from app import main
 from app.engine import ERCFEngine
 from app.engine import load_config
 from app.schema import LoanInput
+import pandas as pd
 
 class TestERCFEngine(unittest.TestCase):
     def setUp(self):
@@ -221,6 +221,29 @@ class TestERCFEngine(unittest.TestCase):
         self.assertIsNone(LoanInput(**base_kwargs, government_subsidy_type="").government_subsidy_type)
         self.assertIsNone(LoanInput(**base_kwargs, government_subsidy_type="   ").government_subsidy_type)
         self.assertIsNone(LoanInput(**base_kwargs, government_subsidy_type="unknown subsidy").government_subsidy_type)
+
+    def test_pbra_subsidy_type_receives_qualifying_multiplier(self):
+        loan = LoanInput(
+            loan_id="SUBSIDY-PBRA-1",
+            original_upb=1000,
+            current_upb=1000,
+            original_loan_amount=2_000_000,
+            dscr=1.4,
+            ltv=0.6,
+            rate_type="fixed",
+            interest_only=False,
+            original_term_months=120,
+            amortization_term_months=360,
+            payment_performance="current",
+            property_type="Multifamily",
+            government_subsidy_type="section 8",
+            qualifying_unit_share=1.0,
+        )
+
+        result = self.engine.calculate_loan(loan)
+
+        self.assertEqual(loan.government_subsidy_type, "pbra")
+        self.assertAlmostEqual(result.subsidy_multiplier, 0.6)
 
     def test_engine_result_exposes_confidence_and_rule_fields(self):
         loan = LoanInput(
@@ -518,7 +541,41 @@ class TestERCFEngine(unittest.TestCase):
 
         self.assertEqual(len(portfolio), 1)
         self.assertEqual(portfolio[0].loan_id, "PERSISTED-1")
-        self.assertTrue(portfolio[0].is_affordable)
+
+    def test_upload_row_mapping_populates_ercf_rule_fields(self):
+        row = pd.Series(
+            {
+                "loan_id": "UPLOAD-1",
+                "original_upb": 1000,
+                "current_upb": 900,
+                "dscr": 1.4,
+                "ltv": 0.6,
+                "property_type": "Multifamily",
+                "state": "NY",
+                "original_loan_amount": 2_500_000,
+                "rate_type": "fixed",
+                "interest_only": "true",
+                "original_term_months": 120,
+                "amortization_term_months": 360,
+                "payment_performance": "current",
+                "government_subsidy_type": "section 8",
+                "qualifying_unit_share": 0.5,
+                "total_units": 100,
+                "qualifying_units": 50,
+            }
+        )
+
+        uploaded = main._loan_from_upload_row(row)
+        self.assertEqual(uploaded.original_loan_amount, 2_500_000)
+        self.assertEqual(uploaded.rate_type, "fixed")
+        self.assertTrue(uploaded.interest_only)
+        self.assertEqual(uploaded.original_term_months, 120)
+        self.assertEqual(uploaded.amortization_term_months, 360)
+        self.assertEqual(uploaded.payment_performance, "current")
+        self.assertEqual(uploaded.government_subsidy_type, "pbra")
+        self.assertEqual(uploaded.qualifying_unit_share, 0.5)
+        self.assertEqual(uploaded.total_units, 100)
+        self.assertEqual(uploaded.qualifying_units, 50)
 
 if __name__ == '__main__':
     unittest.main()

@@ -85,7 +85,6 @@ confidence:
 subsidy:
   qualifying_types:
     - lihtc
-    - section_8
+    - pbra
     - section_515
-    - low_income_housing_tax_credit
     - state_local

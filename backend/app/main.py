@@ -70,6 +70,82 @@ def save_portfolio(portfolio: List[LoanInput]) -> None:
         json.dump([loan.model_dump(mode="json") for loan in portfolio], f)
 
 
+def _csv_optional_str(row: pd.Series, field: str) -> str | None:
+    value = row.get(field)
+    if pd.isna(value):
+        return None
+    text = str(value).strip()
+    return text if text else None
+
+
+def _csv_optional_float(row: pd.Series, field: str) -> float | None:
+    value = row.get(field)
+    if pd.isna(value):
+        return None
+    return float(value)
+
+
+def _csv_optional_int(row: pd.Series, field: str) -> int | None:
+    value = row.get(field)
+    if pd.isna(value):
+        return None
+    return int(value)
+
+
+def _csv_optional_bool(row: pd.Series, field: str) -> bool | None:
+    value = row.get(field)
+    if pd.isna(value):
+        return None
+    if isinstance(value, bool):
+        return value
+
+    text = str(value).strip().lower()
+    if text in {"true", "t", "1", "yes", "y"}:
+        return True
+    if text in {"false", "f", "0", "no", "n"}:
+        return False
+    raise ValueError(f"{field} must be a boolean-like value")
+
+
+def _loan_from_upload_row(row: pd.Series) -> LoanInput:
+    row_id = row.get("loan_id")
+    row_upb = row.get("original_upb")
+    row_cur_upb = row.get("current_upb")
+    row_dscr = row.get("dscr")
+    row_ltv = row.get("ltv")
+
+    if pd.isna(row_id) or str(row_id).strip() == "":
+        raise ValueError("loan_id is required")
+    if pd.isna(row_upb) or pd.isna(row_cur_upb):
+        raise ValueError("original_upb and current_upb are required")
+    if pd.isna(row_dscr) or pd.isna(row_ltv):
+        raise ValueError("dscr and ltv are required")
+
+    return LoanInput(
+        loan_id=str(row_id).strip(),
+        original_upb=float(row_upb),
+        current_upb=float(row_cur_upb),
+        dscr=float(row_dscr),
+        ltv=float(row_ltv),
+        property_type=str(row.get("property_type", "Multifamily"))
+        if not pd.isna(row.get("property_type"))
+        else "Multifamily",
+        state=str(row.get("state", "Unknown"))
+        if not pd.isna(row.get("state"))
+        else "Unknown",
+        original_loan_amount=_csv_optional_float(row, "original_loan_amount"),
+        rate_type=_csv_optional_str(row, "rate_type"),
+        interest_only=_csv_optional_bool(row, "interest_only"),
+        original_term_months=_csv_optional_int(row, "original_term_months"),
+        amortization_term_months=_csv_optional_int(row, "amortization_term_months"),
+        payment_performance=_csv_optional_str(row, "payment_performance"),
+        government_subsidy_type=_csv_optional_str(row, "government_subsidy_type"),
+        qualifying_unit_share=_csv_optional_float(row, "qualifying_unit_share"),
+        total_units=_csv_optional_int(row, "total_units"),
+        qualifying_units=_csv_optional_int(row, "qualifying_units"),
+    )
+
+
 PORTFOLIO: List[LoanInput] = load_portfolio()
 
 
@@ -190,42 +266,7 @@ async def upload_dataset(file: UploadFile = File(...)):
 
     for idx, row in df.iterrows():
         try:
-            row_id = row.get("loan_id")
-            row_upb = row.get("original_upb")
-            row_cur_upb = row.get("current_upb")
-            row_dscr = row.get("dscr")
-            row_ltv = row.get("ltv")
-
-            if pd.isna(row_id) or str(row_id).strip() == "":
-                failed_rows.append({"row": int(idx), "error": "loan_id is required"})
-                continue
-            if pd.isna(row_upb) or pd.isna(row_cur_upb):
-                failed_rows.append(
-                    {
-                        "row": int(idx),
-                        "error": "original_upb and current_upb are required",
-                    }
-                )
-                continue
-            if pd.isna(row_dscr) or pd.isna(row_ltv):
-                failed_rows.append(
-                    {"row": int(idx), "error": "dscr and ltv are required"}
-                )
-                continue
-
-            loan = LoanInput(
-                loan_id=str(row_id).strip(),
-                original_upb=float(row_upb),
-                current_upb=float(row_cur_upb),
-                dscr=float(row_dscr),
-                ltv=float(row_ltv),
-                property_type=str(row.get("property_type", "Multifamily"))
-                if not pd.isna(row.get("property_type"))
-                else "Multifamily",
-                state=str(row.get("state", "Unknown"))
-                if not pd.isna(row.get("state"))
-                else "Unknown",
-            )
+            loan = _loan_from_upload_row(row)
             new_loans.append(loan)
             mapped_count += 1
         except Exception as e:

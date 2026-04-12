@@ -20,9 +20,17 @@ export default function CalculatorPage() {
     loan_id: "LOAN-1001",
     original_upb: 10000000,
     current_upb: 9500000,
+    original_loan_amount: 10000000,
     property_type: "Multifamily",
     dscr: 1.35,
     ltv: 0.65,
+    rate_type: "fixed",
+    interest_only: false,
+    original_term_months: 120,
+    amortization_term_months: 360,
+    payment_performance: "current",
+    government_subsidy_type: "",
+    qualifying_unit_share: 1,
     is_affordable: false,
     state: "NY"
   });
@@ -39,8 +47,15 @@ export default function CalculatorPage() {
         ...formData,
         original_upb: Number(formData.original_upb),
         current_upb: Number(formData.current_upb),
+        original_loan_amount: Number(formData.original_loan_amount),
         dscr: Number(formData.dscr),
-        ltv: Number(formData.ltv)
+        ltv: Number(formData.ltv),
+        original_term_months: Number(formData.original_term_months),
+        amortization_term_months: Number(formData.amortization_term_months),
+        qualifying_unit_share: formData.government_subsidy_type
+          ? Number(formData.qualifying_unit_share)
+          : undefined,
+        government_subsidy_type: formData.government_subsidy_type || undefined,
       };
       const res = await axios.post<EngineResult>(`${API_URL}/api/calculate`, payload);
       setResult(res.data);
@@ -81,6 +96,17 @@ export default function CalculatorPage() {
               </div>
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="original_loan_amount">Original Loan Amount ($)</Label>
+              <Input
+                id="original_loan_amount"
+                name="original_loan_amount"
+                type="number"
+                value={formData.original_loan_amount}
+                onChange={handleChange}
+              />
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="ltv">LTV (Decimal)</Label>
@@ -108,6 +134,92 @@ export default function CalculatorPage() {
               </select>
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="rate_type">Rate Type</Label>
+                <select
+                  id="rate_type"
+                  name="rate_type"
+                  value={formData.rate_type}
+                  onChange={handleChange}
+                  className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2"
+                >
+                  <option value="fixed">Fixed</option>
+                  <option value="arm">ARM</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="payment_performance">Payment Performance</Label>
+                <select
+                  id="payment_performance"
+                  name="payment_performance"
+                  value={formData.payment_performance}
+                  onChange={handleChange}
+                  className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2"
+                >
+                  <option value="current">Current</option>
+                  <option value="30dq">30 DQ</option>
+                  <option value="60dq">60+ DQ</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="original_term_months">Original Term (Months)</Label>
+                <Input
+                  id="original_term_months"
+                  name="original_term_months"
+                  type="number"
+                  value={formData.original_term_months}
+                  onChange={handleChange}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="amortization_term_months">Amortization (Months)</Label>
+                <Input
+                  id="amortization_term_months"
+                  name="amortization_term_months"
+                  type="number"
+                  value={formData.amortization_term_months}
+                  onChange={handleChange}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="government_subsidy_type">Government Subsidy Type</Label>
+              <select
+                id="government_subsidy_type"
+                name="government_subsidy_type"
+                value={formData.government_subsidy_type}
+                onChange={handleChange}
+                className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2"
+              >
+                <option value="">None</option>
+                <option value="lihtc">LIHTC</option>
+                <option value="section 8">Section 8 / PBRA</option>
+                <option value="section 515">Section 515</option>
+                <option value="state/local">State / Local</option>
+              </select>
+            </div>
+
+            {formData.government_subsidy_type && (
+              <div className="space-y-2">
+                <Label htmlFor="qualifying_unit_share">Qualifying Unit Share</Label>
+                <Input
+                  id="qualifying_unit_share"
+                  name="qualifying_unit_share"
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={formData.qualifying_unit_share}
+                  onChange={handleChange}
+                />
+              </div>
+            )}
+
             <div className="flex items-center gap-2 pt-2">
               <input
                 type="checkbox"
@@ -118,6 +230,18 @@ export default function CalculatorPage() {
                 className="rounded border-slate-300 text-blue-600 focus:ring-blue-600"
               />
               <Label htmlFor="is_affordable" className="font-normal cursor-pointer">Affordable / Mission-Driven Flag</Label>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="interest_only"
+                name="interest_only"
+                checked={formData.interest_only}
+                onChange={handleChange}
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-600"
+              />
+              <Label htmlFor="interest_only" className="font-normal cursor-pointer">Interest Only</Label>
             </div>
           </CardContent>
           <CardFooter className="bg-slate-50 border-t border-slate-100 p-4">
