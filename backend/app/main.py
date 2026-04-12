@@ -7,6 +7,7 @@ import os
 import json
 import threading
 from pathlib import Path
+from pydantic import BaseModel
 from .datasets import CuratedStore, ExplorerService
 from .schema import (
     CohortExplorerResponse,
@@ -184,6 +185,43 @@ def get_explorer_cohort(request: CohortRequest):
         breakdown_dimension=request.breakdown_dimension,
         breakdown_metric=request.breakdown_metric,
     )
+
+
+class CompareRequest(BaseModel):
+    left: CohortRequest
+    right: CohortRequest
+
+
+@app.post("/api/explorer/compare")
+def compare_explorer_cohorts(request: CompareRequest):
+    left_rows = curated_store.load_rows(request.left.source, request.left.snapshot)
+    left_service = ExplorerService(left_rows)
+    left_response = left_service.build_cohort(
+        source=request.left.source,
+        snapshot=request.left.snapshot,
+        filters=request.left.filters,
+        breakdown_dimension=request.left.breakdown_dimension,
+        breakdown_metric=request.left.breakdown_metric,
+    )
+
+    right_rows = curated_store.load_rows(request.right.source, request.right.snapshot)
+    right_service = ExplorerService(right_rows)
+    right_response = right_service.build_cohort(
+        source=request.right.source,
+        snapshot=request.right.snapshot,
+        filters=request.right.filters,
+        breakdown_dimension=request.right.breakdown_dimension,
+        breakdown_metric=request.right.breakdown_metric,
+    )
+
+    return {
+        "left": left_response.model_dump(),
+        "right": right_response.model_dump(),
+        **build_compare_response(
+            left_response.summary.model_dump(),
+            right_response.summary.model_dump(),
+        ),
+    }
 
 
 def build_compare_response(

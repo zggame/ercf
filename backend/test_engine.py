@@ -937,6 +937,72 @@ class TestExplorerEndpoints(unittest.TestCase):
             response["deltas"]["total_estimated_capital_amount"], -16.0
         )
 
+    def test_explorer_compare_endpoint_uses_curated_store_and_service(self):
+        from app.main import CompareRequest
+        from app.schema import CohortRequest
+
+        request = CompareRequest(
+            left=CohortRequest(
+                source="freddie_mac",
+                snapshot="2025Q3",
+                filters={"state": ["CA"]},
+                breakdown_dimension="state",
+                breakdown_metric="current_upb_total",
+            ),
+            right=CohortRequest(
+                source="freddie_mac",
+                snapshot="2025Q4",
+                filters={"state": ["TX"]},
+                breakdown_dimension="state",
+                breakdown_metric="current_upb_total",
+            ),
+        )
+        left_rows = [
+            {
+                "loan_id": "FRE-L1",
+                "source": "freddie_mac",
+                "snapshot": "2025Q3",
+                "state": "CA",
+                "property_type": "Multifamily",
+                "current_upb": 100.0,
+                "original_upb": 120.0,
+                "dscr": 1.30,
+                "ltv": 0.60,
+                "estimated_capital_factor": 0.50,
+                "estimated_capital_amount": 50.0,
+            }
+        ]
+        right_rows = [
+            {
+                "loan_id": "FRE-R1",
+                "source": "freddie_mac",
+                "snapshot": "2025Q4",
+                "state": "TX",
+                "property_type": "Multifamily",
+                "current_upb": 160.0,
+                "original_upb": 180.0,
+                "dscr": 1.10,
+                "ltv": 0.75,
+                "estimated_capital_factor": 0.75,
+                "estimated_capital_amount": 120.0,
+            }
+        ]
+
+        with patch.object(
+            main.curated_store,
+            "load_rows",
+            side_effect=[left_rows, right_rows],
+        ) as load_rows:
+            response = main.compare_explorer_cohorts(request)
+
+        self.assertEqual(load_rows.call_count, 2)
+        self.assertEqual(response["left"]["cohort_label"], "freddie_mac 2025Q3")
+        self.assertEqual(response["right"]["cohort_label"], "freddie_mac 2025Q4")
+        self.assertEqual(response["left"]["summary"]["loan_count"], 1)
+        self.assertEqual(response["right"]["summary"]["loan_count"], 1)
+        self.assertAlmostEqual(response["deltas"]["current_upb_total"], -60.0)
+        self.assertAlmostEqual(response["deltas"]["wa_dscr"], 0.20)
+
     def test_explorer_cohort_endpoint_uses_curated_store_and_service(self):
         from app.schema import CohortRequest
 
