@@ -303,6 +303,7 @@ The result model should include:
 - `confidence_score`
 - `confidence_threshold`
 - `result_available`
+- `missing_input_count`
 - `missing_inputs`
 - `inferred_inputs`
 - `confidence_notes`
@@ -313,6 +314,42 @@ If `result_available` is `false`, the result should not present a final risk wei
 - return a dedicated missing-result status with explanation
 
 The implementation should choose one of those patterns consistently and document it in the API contract.
+
+### Per-loan requirement
+
+Every loan-level result must carry its own confidence fields.
+
+This is required even when the result is available and even when the score is high. Confidence is part of the analytical output, not a special-case warning field.
+
+At minimum, every loan result should report:
+
+- `confidence_score`
+- `confidence_threshold`
+- `missing_input_count`
+- `result_available`
+
+### Portfolio tracking and statistics
+
+Missing data should also be tracked across the portfolio so users can understand whether weak coverage is isolated or systemic.
+
+Recommended portfolio-level statistics:
+
+- `total_loans`
+- `loans_with_available_results`
+- `loans_with_missing_results`
+- `average_confidence_score`
+- `median_confidence_score`
+- `minimum_confidence_score`
+- `total_missing_input_count`
+- `missing_input_counts_by_field`
+
+This allows the UI to answer questions such as:
+
+- how many loans are below the confidence threshold
+- which input fields most often prevent a usable result
+- whether the dataset is generally complete enough for analysis
+
+The `missing_input_counts_by_field` structure should be keyed by input name and count how many loans are missing each rule-relevant field.
 
 ## Configuration Design
 
