@@ -13,6 +13,68 @@ class ERCFEngine:
     def __init__(self):
         self.config = load_config()
 
+    def _compute_confidence(self, loan: LoanInput) -> Tuple[int, int, List[str], List[str], List[str], bool]:
+        """
+        Conservative, deterministic confidence scoring based on config-driven penalties.
+
+        Returns: (score, threshold, missing_inputs, inferred_inputs, notes, result_available)
+        """
+        cfg = self.config.get("confidence") or {}
+        enabled = bool(cfg.get("enabled", False))
+        if not enabled:
+            return (100, 0, [], [], [], True)
+
+        threshold = int(cfg.get("minimum_score_for_result", 0) or 0)
+        penalties = cfg.get("penalties") or {}
+        if not isinstance(penalties, dict):
+            penalties = {}
+
+        inferred_inputs: List[str] = []
+        notes: List[str] = []
+        missing_inputs: List[str] = []
+
+        # Inference: we can derive `rate_type` from legacy `is_fixed_rate`, but we
+        # still treat the missing explicit input as a confidence penalty.
+        if getattr(loan, "rate_type", None) is None and getattr(loan, "is_fixed_rate", None) is not None:
+            inferred_inputs.append("rate_type")
+            notes.append("Inferred rate_type from is_fixed_rate")
+
+        score = 100
+
+        def _is_missing(field: str, value: Any) -> bool:
+            if value is None:
+                return True
+            if isinstance(value, str) and value.strip() == "":
+                return True
+            return False
+
+        # Iterate deterministically for stable outputs.
+        for field in sorted(penalties.keys()):
+            penalty = penalties.get(field)
+            try:
+                penalty_int = int(penalty)
+            except Exception:
+                continue
+            if penalty_int <= 0:
+                continue
+
+            value = getattr(loan, field, None)
+            if _is_missing(field, value):
+                score -= penalty_int
+                missing_inputs.append(field)
+                notes.append(f"Missing {field} (-{penalty_int})")
+
+        if score < 0:
+            score = 0
+        if score > 100:
+            score = 100
+
+        result_available = score >= threshold
+        if not result_available:
+            notes.append("Result suppressed: confidence below threshold")
+
+        return (score, threshold, missing_inputs, inferred_inputs, notes, result_available)
+
     def _band_key_for_value(self, value: float, bands: List[Dict[str, Any]]) -> Optional[str]:
         if value is None or not bands:
             return None
@@ -177,7 +239,17 @@ class ERCFEngine:
         floor_applied = False
         final_risk_weight = None
         capital_amount = None
-        if base_risk_weight is not None:
+
+        (
+            confidence_score,
+            confidence_threshold,
+            missing_inputs,
+            inferred_inputs,
+            confidence_notes,
+            result_available,
+        ) = self._compute_confidence(loan)
+
+        if result_available and base_risk_weight is not None:
             raw = base_risk_weight * combined_multiplier
             if raw < floor_value:
                 floor_applied = True
@@ -185,6 +257,10 @@ class ERCFEngine:
             else:
                 final_risk_weight = raw
             capital_amount = loan.current_upb * final_risk_weight
+        elif not result_available:
+            # Avoid schema backfills for ERCF results by providing explicit zeros.
+            final_risk_weight = 0.0
+            capital_amount = 0.0
 
         return EngineResult(
             loan_id=loan.loan_id,
@@ -207,6 +283,13 @@ class ERCFEngine:
             combined_multiplier=combined_multiplier,
             floor_value=floor_value,
             floor_applied=floor_applied,
+            confidence_score=confidence_score,
+            confidence_threshold=confidence_threshold,
+            missing_input_count=len(missing_inputs),
+            missing_inputs=missing_inputs,
+            inferred_inputs=inferred_inputs,
+            confidence_notes=confidence_notes,
+            result_available=result_available,
             final_risk_weight=final_risk_weight,
             capital_amount=capital_amount,
         )

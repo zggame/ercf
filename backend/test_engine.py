@@ -280,6 +280,118 @@ class TestERCFEngine(unittest.TestCase):
         self.assertTrue(hasattr(result, "final_risk_weight"))
         self.assertTrue(hasattr(result, "capital_amount"))
 
+    def test_confidence_scoring_applies_missing_input_penalties(self):
+        # Task 4: confidence score and missing-input tracking are config-driven.
+        self.engine.config = {
+            "base_risk_weight": 0.5,
+            "confidence": {
+                "enabled": True,
+                "minimum_score_for_result": 70,
+                "penalties": {
+                    "rate_type": 40,
+                    "payment_performance": 20,
+                    "original_loan_amount": 15,
+                    "interest_only": 10,
+                },
+            },
+            # Minimal tables so base_risk_weight can be computed (not backfilled).
+            "ltv_bands": [{"key": "all", "max": 999.0}],
+            "dscr_bands": [{"key": "all", "max": 999.0}],
+            "fixed_rate_base_risk_weights": {"all": {"all": 0.30}},
+            "arm_base_risk_weights": {"all": {"all": 0.40}},
+        }
+
+        loan = LoanInput(
+            loan_id="CONF-1",
+            original_upb=1000,
+            current_upb=1000,
+            dscr=1.25,
+            ltv=0.65,
+            property_type="Multifamily",
+            # Missing: rate_type, payment_performance, original_loan_amount, interest_only
+        )
+
+        result = self.engine.calculate_loan(loan)
+        expected_score = 100 - (40 + 20 + 15 + 10)
+        self.assertEqual(result.confidence_score, expected_score)
+        self.assertEqual(result.confidence_threshold, 70)
+        self.assertEqual(result.missing_input_count, 4)
+        self.assertCountEqual(
+            result.missing_inputs,
+            ["rate_type", "payment_performance", "original_loan_amount", "interest_only"],
+        )
+
+    def test_confidence_suppresses_result_below_threshold_but_preserves_legacy_proxy(self):
+        self.engine.config = {
+            "base_risk_weight": 0.5,
+            "confidence": {
+                "enabled": True,
+                "minimum_score_for_result": 90,
+                "penalties": {
+                    "rate_type": 40,
+                    "payment_performance": 20,
+                },
+            },
+            "ltv_bands": [{"key": "all", "max": 999.0}],
+            "dscr_bands": [{"key": "all", "max": 999.0}],
+            "fixed_rate_base_risk_weights": {"all": {"all": 0.30}},
+            "arm_base_risk_weights": {"all": {"all": 0.40}},
+        }
+
+        loan = LoanInput(
+            loan_id="CONF-2",
+            original_upb=1000,
+            current_upb=1000,
+            dscr=1.25,
+            ltv=0.65,
+            property_type="Multifamily",
+            # Missing rate_type + payment_performance => score 40 < 90
+        )
+
+        result = self.engine.calculate_loan(loan)
+        self.assertFalse(result.result_available)
+        self.assertLess(result.confidence_score, result.confidence_threshold)
+
+        # Suppressed ERCF result should be marked as unavailable.
+        self.assertEqual(result.final_risk_weight, 0.0)
+        self.assertEqual(result.capital_amount, 0.0)
+
+        # Legacy proxy outputs must remain intact regardless of confidence.
+        self.assertGreater(result.estimated_capital_factor, 0.0)
+        self.assertGreater(result.estimated_capital_amount, 0.0)
+
+    def test_confidence_tracks_inferred_rate_type_and_still_penalizes_missing(self):
+        self.engine.config = {
+            "base_risk_weight": 0.5,
+            "confidence": {
+                "enabled": True,
+                "minimum_score_for_result": 70,
+                "penalties": {
+                    "rate_type": 40,
+                },
+            },
+            "ltv_bands": [{"key": "all", "max": 999.0}],
+            "dscr_bands": [{"key": "all", "max": 999.0}],
+            "fixed_rate_base_risk_weights": {"all": {"all": 0.30}},
+            "arm_base_risk_weights": {"all": {"all": 0.40}},
+        }
+
+        loan = LoanInput(
+            loan_id="CONF-3",
+            original_upb=1000,
+            current_upb=1000,
+            dscr=1.25,
+            ltv=0.65,
+            property_type="Multifamily",
+            is_fixed_rate=False,  # Engine can infer ARM, but input is still missing.
+            rate_type=None,
+        )
+
+        result = self.engine.calculate_loan(loan)
+        self.assertIn("rate_type", result.inferred_inputs)
+        self.assertIn("rate_type", result.missing_inputs)
+        self.assertEqual(result.confidence_score, 60)
+
     def test_basic_calculation(self):
         # Keep this test independent of the on-disk policy config; the config
         # shape changes in Task 2 and engine logic will change in later tasks.
