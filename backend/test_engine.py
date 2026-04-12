@@ -6,11 +6,62 @@ from unittest.mock import patch
 
 from app import main
 from app.engine import ERCFEngine
+from app.engine import load_config
 from app.schema import LoanInput
 
 class TestERCFEngine(unittest.TestCase):
     def setUp(self):
         self.engine = ERCFEngine()
+
+    def test_policy_config_is_table_driven_and_has_confidence_settings(self):
+        cfg = load_config()
+
+        # Base-table policy config (FHFA-style shape). Engine logic will be updated
+        # in later tasks; this test only asserts the policy config loads and is
+        # internally consistent.
+        self.assertIn("ltv_bands", cfg)
+        self.assertIn("dscr_bands", cfg)
+        self.assertIn("fixed_rate_base_risk_weights", cfg)
+        self.assertIn("arm_base_risk_weights", cfg)
+        self.assertIn("confidence", cfg)
+
+        ltv_bands = cfg["ltv_bands"]
+        dscr_bands = cfg["dscr_bands"]
+        self.assertIsInstance(ltv_bands, list)
+        self.assertIsInstance(dscr_bands, list)
+        self.assertGreaterEqual(len(ltv_bands), 1)
+        self.assertGreaterEqual(len(dscr_bands), 1)
+
+        ltv_keys = [b["key"] for b in ltv_bands]
+        dscr_keys = [b["key"] for b in dscr_bands]
+
+        fixed = cfg["fixed_rate_base_risk_weights"]
+        arm = cfg["arm_base_risk_weights"]
+        self.assertIsInstance(fixed, dict)
+        self.assertIsInstance(arm, dict)
+
+        # Rows: DSCR bands. Columns: LTV bands.
+        self.assertEqual(set(fixed.keys()), set(dscr_keys))
+        self.assertEqual(set(arm.keys()), set(dscr_keys))
+        for row_key in dscr_keys:
+            self.assertEqual(set(fixed[row_key].keys()), set(ltv_keys))
+            self.assertEqual(set(arm[row_key].keys()), set(ltv_keys))
+            for col_key in ltv_keys:
+                self.assertIsInstance(fixed[row_key][col_key], (int, float))
+                self.assertIsInstance(arm[row_key][col_key], (int, float))
+
+        # Spot-check determinism for a few cells (guards against accidental edits).
+        self.assertAlmostEqual(fixed["gt_150"]["le_60"], 0.25)
+        self.assertAlmostEqual(arm["le_125"]["le_80"], 0.75)
+
+        confidence = cfg["confidence"]
+        self.assertIsInstance(confidence, dict)
+        self.assertIn("enabled", confidence)
+        self.assertIn("minimum_score_for_result", confidence)
+        self.assertIn("penalties", confidence)
+        self.assertIsInstance(confidence["enabled"], bool)
+        self.assertIsInstance(confidence["minimum_score_for_result"], int)
+        self.assertIsInstance(confidence["penalties"], dict)
 
     def test_government_subsidy_type_normalization(self):
         base_kwargs = dict(
@@ -110,6 +161,31 @@ class TestERCFEngine(unittest.TestCase):
         self.assertTrue(hasattr(result, "capital_amount"))
 
     def test_basic_calculation(self):
+        # Keep this test independent of the on-disk policy config; the config
+        # shape changes in Task 2 and engine logic will change in later tasks.
+        self.engine.config = {
+            "base_risk_weight": 0.5,
+            "ltv_multipliers": [
+                {"max": 0.60, "multiplier": 0.8},
+                {"max": 0.70, "multiplier": 1.0},
+                {"max": 0.80, "multiplier": 1.2},
+                {"max": 1.00, "multiplier": 1.5},
+                {"max": 999.0, "multiplier": 2.0},
+            ],
+            "dscr_multipliers": [
+                {"max": 1.00, "multiplier": 1.5},
+                {"max": 1.25, "multiplier": 1.2},
+                {"max": 1.50, "multiplier": 1.0},
+                {"max": 999.0, "multiplier": 0.8},
+            ],
+            "property_type_multipliers": {
+                "Multifamily": 1.0,
+                "Seniors Housing": 1.1,
+                "Student Housing": 1.15,
+                "Manufactured Housing": 1.05,
+            },
+            "affordability_multiplier": 0.9,
+        }
         loan = LoanInput(
             loan_id="TEST-1",
             original_upb=1000,
@@ -125,6 +201,31 @@ class TestERCFEngine(unittest.TestCase):
         self.assertEqual(result.estimated_capital_amount, 500.0)
 
     def test_high_risk_calculation(self):
+        # Keep this test independent of the on-disk policy config; the config
+        # shape changes in Task 2 and engine logic will change in later tasks.
+        self.engine.config = {
+            "base_risk_weight": 0.5,
+            "ltv_multipliers": [
+                {"max": 0.60, "multiplier": 0.8},
+                {"max": 0.70, "multiplier": 1.0},
+                {"max": 0.80, "multiplier": 1.2},
+                {"max": 1.00, "multiplier": 1.5},
+                {"max": 999.0, "multiplier": 2.0},
+            ],
+            "dscr_multipliers": [
+                {"max": 1.00, "multiplier": 1.5},
+                {"max": 1.25, "multiplier": 1.2},
+                {"max": 1.50, "multiplier": 1.0},
+                {"max": 999.0, "multiplier": 0.8},
+            ],
+            "property_type_multipliers": {
+                "Multifamily": 1.0,
+                "Seniors Housing": 1.1,
+                "Student Housing": 1.15,
+                "Manufactured Housing": 1.05,
+            },
+            "affordability_multiplier": 0.9,
+        }
         loan = LoanInput(
             loan_id="TEST-2",
             original_upb=1000,

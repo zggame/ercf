@@ -29,3 +29,55 @@ property_type_multipliers:
   "Manufactured Housing": 1.05
 
 affordability_multiplier: 0.9
+
+# ---------------------------------------------------------------------------
+# FHFA-style table-driven policy sections (loan-level multifamily ERCF).
+#
+# Task 2 adds these alongside the legacy scalar/multiplier keys. Engine logic
+# will switch to these tables in a later task.
+# ---------------------------------------------------------------------------
+
+ltv_bands:
+  - key: le_60
+    max: 0.60
+  - key: le_70
+    max: 0.70
+  - key: le_80
+    max: 0.80
+  - key: gt_80
+    max: 999.0
+
+dscr_bands:
+  - key: le_100
+    max: 1.00
+  - key: le_125
+    max: 1.25
+  - key: le_150
+    max: 1.50
+  - key: gt_150
+    max: 999.0
+
+# Base risk weights (as decimals, e.g. 0.25 means 25%).
+# Rows keyed by DSCR band; columns keyed by LTV band.
+fixed_rate_base_risk_weights:
+  le_100: {le_60: 0.55, le_70: 0.65, le_80: 0.85, gt_80: 1.10}
+  le_125: {le_60: 0.40, le_70: 0.50, le_80: 0.65, gt_80: 0.90}
+  le_150: {le_60: 0.30, le_70: 0.40, le_80: 0.55, gt_80: 0.75}
+  gt_150: {le_60: 0.25, le_70: 0.30, le_80: 0.45, gt_80: 0.60}
+
+arm_base_risk_weights:
+  le_100: {le_60: 0.60, le_70: 0.75, le_80: 0.95, gt_80: 1.20}
+  le_125: {le_60: 0.45, le_70: 0.55, le_80: 0.75, gt_80: 1.00}
+  le_150: {le_60: 0.35, le_70: 0.45, le_80: 0.60, gt_80: 0.80}
+  gt_150: {le_60: 0.30, le_70: 0.35, le_80: 0.50, gt_80: 0.65}
+
+confidence:
+  enabled: true
+  minimum_score_for_result: 70
+  penalties:
+    rate_type: 40
+    payment_performance: 20
+    original_loan_amount: 15
+    interest_only: 10
+    original_term_months: 10
+    amortization_term_months: 10
