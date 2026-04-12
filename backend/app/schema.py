@@ -1,3 +1,4 @@
+import re
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional, List
 from datetime import date
@@ -69,27 +70,24 @@ class LoanInput(BaseModel):
     def _validate_government_subsidy_type(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return None
-        v = v.strip().lower()
-        if v == "":
+        raw = v.strip()
+        if raw == "":
             return None
 
         # Keep this constrained/categorical while remaining backward compatible:
         # unknown values do not error; they simply fall back to "no subsidy".
+        # Canonicalize: lowercase and collapse non-alphanumeric characters to underscores.
+        v = re.sub(r"[^a-z0-9]+", "_", raw.lower()).strip("_")
         alias_map = {
             "lihtc": "lihtc",
             "low_income_housing_tax_credit": "lihtc",
-            "low-income housing tax credit": "lihtc",
             "pbra": "pbra",
             "project_based_rental_assistance": "pbra",
-            "project-based rental assistance": "pbra",
             "section8": "pbra",
             "section_8": "pbra",
-            "section-8": "pbra",
             "section515": "section_515",
             "section_515": "section_515",
             "state_local": "state_local",
-            "state-local": "state_local",
-            "state / local": "state_local",
         }
         normalized = alias_map.get(v)
         allowed = {"lihtc", "pbra", "section_515", "state_local"}

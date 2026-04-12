@@ -12,6 +12,45 @@ class TestERCFEngine(unittest.TestCase):
     def setUp(self):
         self.engine = ERCFEngine()
 
+    def test_government_subsidy_type_normalization(self):
+        base_kwargs = dict(
+            loan_id="SUBSIDY-NORM-1",
+            original_upb=1000,
+            current_upb=1000,
+            dscr=1.35,
+            ltv=0.65,
+            property_type="Multifamily",
+        )
+
+        self.assertEqual(
+            LoanInput(**base_kwargs, government_subsidy_type="section 8").government_subsidy_type,
+            "pbra",
+        )
+        self.assertEqual(
+            LoanInput(**base_kwargs, government_subsidy_type="Section-8").government_subsidy_type,
+            "pbra",
+        )
+        self.assertEqual(
+            LoanInput(**base_kwargs, government_subsidy_type="  section_8  ").government_subsidy_type,
+            "pbra",
+        )
+        self.assertEqual(
+            LoanInput(**base_kwargs, government_subsidy_type="section 515").government_subsidy_type,
+            "section_515",
+        )
+        self.assertEqual(
+            LoanInput(**base_kwargs, government_subsidy_type="low income housing tax credit").government_subsidy_type,
+            "lihtc",
+        )
+        self.assertEqual(
+            LoanInput(**base_kwargs, government_subsidy_type="state/local").government_subsidy_type,
+            "state_local",
+        )
+
+        self.assertIsNone(LoanInput(**base_kwargs, government_subsidy_type="").government_subsidy_type)
+        self.assertIsNone(LoanInput(**base_kwargs, government_subsidy_type="   ").government_subsidy_type)
+        self.assertIsNone(LoanInput(**base_kwargs, government_subsidy_type="unknown subsidy").government_subsidy_type)
+
     def test_engine_result_exposes_confidence_and_rule_fields(self):
         loan = LoanInput(
             loan_id="RULE-INPUT-1",
