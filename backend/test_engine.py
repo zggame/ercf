@@ -906,5 +906,70 @@ class TestCuratedExplorer(unittest.TestCase):
         self.assertEqual(response.drilldown_rows[0].loan_id, "FRE-1")
         self.assertIn("capital_factor_bands", response.fixed_charts)
 
+
+class TestExplorerEndpoints(unittest.TestCase):
+    def test_compare_endpoint_returns_two_cohorts_and_delta_cards(self):
+        from app.main import build_compare_response
+
+        left = {
+            "loan_count": 2,
+            "original_upb_total": 300.0,
+            "current_upb_total": 250.0,
+            "wa_dscr": 1.20,
+            "wa_ltv": 0.65,
+            "wa_estimated_capital_factor": 0.55,
+            "total_estimated_capital_amount": 140.0,
+        }
+        right = {
+            "loan_count": 2,
+            "original_upb_total": 310.0,
+            "current_upb_total": 260.0,
+            "wa_dscr": 1.10,
+            "wa_ltv": 0.70,
+            "wa_estimated_capital_factor": 0.60,
+            "total_estimated_capital_amount": 156.0,
+        }
+
+        response = build_compare_response(left, right)
+
+        self.assertAlmostEqual(response["deltas"]["wa_dscr"], 0.10)
+        self.assertAlmostEqual(
+            response["deltas"]["total_estimated_capital_amount"], -16.0
+        )
+
+    def test_explorer_cohort_endpoint_uses_curated_store_and_service(self):
+        from app.schema import CohortRequest
+
+        request = CohortRequest(
+            source="freddie_mac",
+            snapshot="2025Q3",
+            filters={"state": ["CA"]},
+            breakdown_dimension="state",
+            breakdown_metric="current_upb_total",
+        )
+        rows = [
+            {
+                "loan_id": "FRE-1",
+                "source": "freddie_mac",
+                "snapshot": "2025Q3",
+                "state": "CA",
+                "property_type": "Multifamily",
+                "current_upb": 100.0,
+                "original_upb": 120.0,
+                "dscr": 1.30,
+                "ltv": 0.60,
+                "estimated_capital_factor": 0.50,
+                "estimated_capital_amount": 50.0,
+            }
+        ]
+
+        with patch.object(main.curated_store, "load_rows", return_value=rows) as load_rows:
+            response = main.get_explorer_cohort(request)
+
+        load_rows.assert_called_once_with("freddie_mac", "2025Q3")
+        self.assertEqual(response.cohort_label, "freddie_mac 2025Q3")
+        self.assertEqual(response.summary.loan_count, 1)
+        self.assertEqual(response.breakdown.rows[0].key, "CA")
+
 if __name__ == '__main__':
     unittest.main()

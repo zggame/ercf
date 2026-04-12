@@ -7,7 +7,15 @@ import os
 import json
 import threading
 from pathlib import Path
-from .schema import LoanInput, EngineResult, LoanWithResult, PortfolioSummary
+from .datasets import CuratedStore, ExplorerService
+from .schema import (
+    CohortExplorerResponse,
+    CohortRequest,
+    EngineResult,
+    LoanInput,
+    LoanWithResult,
+    PortfolioSummary,
+)
 from .engine import ERCFEngine
 
 app = FastAPI(title="ERCF Capital Analytics API")
@@ -23,6 +31,10 @@ app.add_middleware(
 
 engine = ERCFEngine()
 portfolio_lock = threading.Lock()
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+CURATED_DATA_ROOT = PROJECT_ROOT / "tmp" / "datasets"
+curated_store = CuratedStore(CURATED_DATA_ROOT)
 
 DB_PATH = Path(__file__).parent.parent / "portfolio_data.json"
 
@@ -156,7 +168,33 @@ def read_root():
 
 @app.post("/api/calculate", response_model=EngineResult)
 def calculate_single_loan(loan: LoanInput):
+    # Keep the calculator contract stable so the refined-rule branch can slot in
+    # behind the same frontend request shape during the PoC.
     return engine.calculate_loan(loan)
+
+
+@app.post("/api/explorer/cohort", response_model=CohortExplorerResponse)
+def get_explorer_cohort(request: CohortRequest):
+    rows = curated_store.load_rows(request.source, request.snapshot)
+    service = ExplorerService(rows)
+    return service.build_cohort(
+        source=request.source,
+        snapshot=request.snapshot,
+        filters=request.filters,
+        breakdown_dimension=request.breakdown_dimension,
+        breakdown_metric=request.breakdown_metric,
+    )
+
+
+def build_compare_response(
+    left: dict[str, float], right: dict[str, float]
+) -> dict[str, dict[str, float]]:
+    return {
+        "deltas": {
+            key: left[key] - right[key]
+            for key in left.keys()
+        }
+    }
 
 
 @app.get("/api/portfolio", response_model=List[LoanInput])
