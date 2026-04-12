@@ -236,6 +236,84 @@ Preferred policy:
 
 This avoids overstating subsidy relief or understating capital.
 
+## Confidence and Result Availability
+
+The engine should expose a confidence measure that reflects how complete the loan-level rule inputs are.
+
+The purpose is not to judge whether the math executed correctly. The purpose is to indicate whether the result is supported by enough real loan data to be analytically credible.
+
+### Confidence concept
+
+The confidence score should represent input completeness for rule-relevant fields.
+
+- high confidence means the engine used mostly direct, required loan inputs
+- medium confidence means some fields were inferred or defaulted conservatively
+- low confidence means too many rule-relevant elements were missing, so the output should not be presented as a usable result
+
+### Confidence calculation
+
+The score should be config-driven and based on missing or inferred elements.
+
+Recommended structure:
+
+- start from `100`
+- subtract configured penalties for each missing, inferred, or downgraded input
+- clamp the result to `0` through `100`
+
+Penalty weights should be configurable by field or field group. Fields that materially change the FHFA-style rule should carry larger penalties than descriptive or supporting fields.
+
+Example high-impact confidence inputs:
+
+- missing `rate_type`
+- missing `payment_performance`
+- missing `original_loan_amount`
+- missing `interest_only`
+- missing `original_term_months`
+- missing `amortization_term_months`
+- missing subsidy qualification evidence when subsidy treatment is claimed
+
+Example lower-impact confidence inputs:
+
+- missing supporting unit-count detail when a direct qualifying share was still provided
+- missing descriptive property subtype information when neutral treatment is still valid
+
+### Configurable threshold
+
+The minimum confidence threshold should be configurable in policy config.
+
+Recommended config items:
+
+- `confidence.enabled`
+- `confidence.minimum_score_for_result`
+- `confidence.penalties`
+- `confidence.missing_result_code`
+
+If the score falls below the configured minimum:
+
+- the engine should mark the rule result as unavailable or missing
+- the API should still return the confidence details and the missing-input reasons
+- the UI should show that the loan does not have enough information for a credible ERCF-style result
+
+This is preferable to emitting a seemingly precise number from heavily defaulted data.
+
+### Output behavior
+
+The result model should include:
+
+- `confidence_score`
+- `confidence_threshold`
+- `result_available`
+- `missing_inputs`
+- `inferred_inputs`
+- `confidence_notes`
+
+If `result_available` is `false`, the result should not present a final risk weight or capital amount as authoritative. The response can either:
+
+- set the numeric result fields to `null`, or
+- return a dedicated missing-result status with explanation
+
+The implementation should choose one of those patterns consistently and document it in the API contract.
+
 ## Configuration Design
 
 The rule content should move into structured config rather than stay embedded in Python logic.
@@ -254,6 +332,7 @@ Recommended config sections:
 - `multipliers.special_product`
 - `subsidy`
 - `risk_weight_floor`
+- `confidence`
 
 The engine should:
 
@@ -270,9 +349,11 @@ The engine should expose a deterministic step-by-step evaluation:
 3. look up base risk weight from DSCR and LTV
 4. compute each applicable loan-level multiplier
 5. compute subsidy multiplier
-6. multiply base weight by all multipliers
-7. apply the 20 percent floor
-8. compute capital amount from `current_upb`
+6. compute confidence from missing and inferred inputs
+7. if confidence is below threshold, return missing-result status with details
+8. otherwise multiply base weight by all multipliers
+9. apply the 20 percent floor
+10. compute capital amount from `current_upb`
 
 The result should include calculation detail, not just the final number.
 
@@ -292,6 +373,11 @@ The result payload should expose at least:
 - `combined_multiplier`
 - `floor_value`
 - `floor_applied`
+- `confidence_score`
+- `confidence_threshold`
+- `result_available`
+- `missing_inputs`
+- `inferred_inputs`
 - `final_risk_weight`
 - `capital_amount`
 
@@ -306,6 +392,7 @@ It should explain:
 - that the app uses a loan-level FHFA-inspired multifamily ERCF calculation
 - the formula order
 - the key input fields and why they matter
+- the confidence framework and when results are suppressed as missing
 - where simplified treatment still exists
 - that CRT and credit enhancement remain out of scope
 
@@ -339,6 +426,9 @@ Tests should cover:
 - subsidy multiplier at `0`, `1`, and weighted mixed cases
 - 20 percent floor behavior
 - capital amount calculation
+- confidence penalties for missing critical inputs
+- result suppression when confidence falls below threshold
+- configurable threshold behavior
 - validation errors for missing rule-critical fields
 
 Golden tests should use representative example loans with explicitly expected final risk weights.
