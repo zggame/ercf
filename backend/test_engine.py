@@ -1,9 +1,12 @@
 import json
 import tempfile
 import unittest
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
+
+import pandas as pd
 
 from app import main
 from app.engine import ERCFEngine
@@ -11,6 +14,12 @@ from app.engine import load_config
 from app.schema import LoanInput
 from fastapi.testclient import TestClient
 import pandas as pd
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from ingest_gse import build_curated_rows
 
 class TestERCFEngine(unittest.TestCase):
     def setUp(self):
@@ -668,6 +677,89 @@ class TestERCFEngine(unittest.TestCase):
         ):
             with self.subTest(field=field):
                 self.assertIn(field, body)
+
+    def test_build_curated_rows_normalizes_freddie_latest_quarter(self):
+        frame = pd.DataFrame(
+            [
+                {
+                    "lnno": 100,
+                    "quarter": "y24q4",
+                    "amt_upb_pch": 120.0,
+                    "amt_upb_endg": 100.0,
+                    "rate_dcr": 1.25,
+                    "rate_ltv": 0.65,
+                    "code_st": "CA",
+                    "geographical_region": "LOS ANGELES, CA",
+                },
+                {
+                    "lnno": 101,
+                    "quarter": "y25q3",
+                    "amt_upb_pch": 150.0,
+                    "amt_upb_endg": 130.0,
+                    "rate_dcr": 1.30,
+                    "rate_ltv": 0.70,
+                    "code_st": "TX",
+                    "geographical_region": "DALLAS, TX",
+                },
+            ]
+        )
+
+        rows = build_curated_rows("freddie_mac", [frame], snapshot="2025Q3")
+
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row["source"], "freddie_mac")
+        self.assertEqual(row["snapshot"], "2025Q3")
+        self.assertEqual(row["loan_id"], "101")
+        self.assertEqual(row["state"], "TX")
+        self.assertAlmostEqual(row["current_upb"], 130.0)
+        self.assertAlmostEqual(row["original_upb"], 150.0)
+        self.assertAlmostEqual(row["dscr"], 1.30)
+        self.assertAlmostEqual(row["ltv"], 0.70)
+
+    def test_build_curated_rows_normalizes_fannie_latest_reporting_period(self):
+        frame = pd.DataFrame(
+            [
+                {
+                    "Loan Number": "FNM-1",
+                    "Reporting Period Date": "2025-06-30",
+                    "Original UPB": 200.0,
+                    "UPB - Current": 150.0,
+                    "Underwritten DSCR": 1.20,
+                    "Loan Acquisition LTV": 68.0,
+                    "Specific Property Type": "Multifamily",
+                    "Property State": "CA",
+                    "Metropolitan Statistical Area": "Los Angeles, CA",
+                    "Affordable Housing Type": "",
+                },
+                {
+                    "Loan Number": "FNM-2",
+                    "Reporting Period Date": "2025-09-30",
+                    "Original UPB": 300.0,
+                    "UPB - Current": 250.0,
+                    "Underwritten DSCR": 1.35,
+                    "Loan Acquisition LTV": 0.72,
+                    "Specific Property Type": "Seniors Housing",
+                    "Property State": "TX",
+                    "Metropolitan Statistical Area": "Dallas, TX",
+                    "Affordable Housing Type": "Affordable",
+                },
+            ]
+        )
+
+        rows = build_curated_rows("fannie_mae", [frame], snapshot="202509")
+
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row["source"], "fannie_mae")
+        self.assertEqual(row["snapshot"], "202509")
+        self.assertEqual(row["loan_id"], "FNM-2")
+        self.assertEqual(row["state"], "TX")
+        self.assertTrue(row["is_affordable"])
+        self.assertAlmostEqual(row["current_upb"], 250.0)
+        self.assertAlmostEqual(row["original_upb"], 300.0)
+        self.assertAlmostEqual(row["dscr"], 1.35)
+        self.assertAlmostEqual(row["ltv"], 0.72)
 
 
 class TestExplorerContracts(unittest.TestCase):
