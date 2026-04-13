@@ -7,6 +7,7 @@ from app import main
 from app.engine import ERCFEngine
 from app.engine import load_config
 from app.schema import LoanInput
+from fastapi.testclient import TestClient
 import pandas as pd
 
 class TestERCFEngine(unittest.TestCase):
@@ -302,6 +303,64 @@ class TestERCFEngine(unittest.TestCase):
         self.assertTrue(hasattr(result, "result_available"))
         self.assertTrue(hasattr(result, "final_risk_weight"))
         self.assertTrue(hasattr(result, "capital_amount"))
+
+    def test_calculator_api_response_keeps_refined_trace_fields(self):
+        client = TestClient(main.app)
+        response = client.post(
+            "/api/calculate",
+            json={
+                "loan_id": "TRACE-API-1",
+                "original_upb": 1000,
+                "current_upb": 1000,
+                "original_loan_amount": 1000,
+                "dscr": 1.25,
+                "ltv": 0.70,
+                "rate_type": "fixed",
+                "interest_only": False,
+                "original_term_months": 120,
+                "amortization_term_months": 360,
+                "payment_performance": "current",
+                "property_type": "Multifamily",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        trace_fields = [
+            "base_weight",
+            "ltv_multiplier",
+            "dscr_multiplier",
+            "property_multiplier",
+            "affordability_multiplier",
+            "base_risk_weight",
+            "payment_performance_multiplier",
+            "interest_only_multiplier",
+            "term_multiplier",
+            "amortization_multiplier",
+            "loan_size_multiplier",
+            "special_product_multiplier",
+            "subsidy_multiplier",
+            "combined_multiplier",
+            "floor_value",
+            "floor_applied",
+            "confidence_score",
+            "confidence_threshold",
+            "missing_input_count",
+            "missing_inputs",
+            "inferred_inputs",
+            "confidence_notes",
+            "result_available",
+            "final_risk_weight",
+            "capital_amount",
+        ]
+
+        for field in trace_fields:
+            with self.subTest(field=field):
+                self.assertIn(field, body)
+
+        self.assertTrue(body["result_available"])
+        self.assertIsInstance(body["confidence_notes"], list)
+        self.assertIsInstance(body["missing_inputs"], list)
 
     def test_confidence_scoring_applies_missing_input_penalties(self):
         # Task 4: confidence score and missing-input tracking are config-driven.
