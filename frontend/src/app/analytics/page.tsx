@@ -59,7 +59,8 @@ export default function AnalyticsPage() {
   const [primaryData, setPrimaryData] = useState<CohortExplorerResponse | null>(null);
   const [compareData, setCompareData] = useState<CompareResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [primaryError, setPrimaryError] = useState<string | null>(null);
+  const [compareError, setCompareError] = useState<string | null>(null);
 
   const requestSignature = JSON.stringify({
     compareEnabled,
@@ -72,24 +73,36 @@ export default function AnalyticsPage() {
 
     const loadExplorer = async () => {
       setLoading(true);
-      setError(null);
+      setPrimaryError(null);
+      setCompareError(null);
 
       try {
         if (compareEnabled) {
-          const response = await axios.post<CompareResponse>(
-            `${API_URL}/api/explorer/compare`,
-            {
+          const [primaryResult, compareResult] = await Promise.allSettled([
+            axios.post<CohortExplorerResponse>(`${API_URL}/api/explorer/cohort`, primaryRequest),
+            axios.post<CompareResponse>(`${API_URL}/api/explorer/compare`, {
               left: primaryRequest,
               right: compareRequest,
-            }
-          );
+            }),
+          ]);
 
           if (cancelled) {
             return;
           }
 
-          setCompareData(response.data);
-          setPrimaryData(response.data.left);
+          if (primaryResult.status === "fulfilled") {
+            setPrimaryData(primaryResult.value.data);
+          } else {
+            setPrimaryError(extractErrorMessage(primaryResult.reason));
+            setPrimaryData(null);
+          }
+
+          if (compareResult.status === "fulfilled") {
+            setCompareData(compareResult.value.data);
+          } else {
+            setCompareError(extractErrorMessage(compareResult.reason));
+            setCompareData(null);
+          }
         } else {
           const response = await axios.post<CohortExplorerResponse>(
             `${API_URL}/api/explorer/cohort`,
@@ -102,15 +115,16 @@ export default function AnalyticsPage() {
 
           setPrimaryData(response.data);
           setCompareData(null);
+          setPrimaryError(null);
         }
       } catch (requestError) {
         if (cancelled) {
           return;
         }
 
+        setPrimaryError(extractErrorMessage(requestError));
         setPrimaryData(null);
         setCompareData(null);
-        setError(extractErrorMessage(requestError));
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -130,8 +144,9 @@ export default function AnalyticsPage() {
     ? "grid grid-cols-1 gap-6 xl:grid-cols-2"
     : "grid grid-cols-1 gap-6";
 
-  const primaryPanelData = compareEnabled ? compareData?.left ?? null : primaryData;
+  const primaryPanelData = compareEnabled ? primaryData ?? compareData?.left ?? null : primaryData;
   const secondaryPanelData = compareEnabled ? compareData?.right ?? null : null;
+  const bannerError = primaryError ?? compareError;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 pb-6">
@@ -202,11 +217,11 @@ export default function AnalyticsPage() {
           </Card>
         </div>
 
-        {error ? (
+        {bannerError ? (
           <Card className="mt-4 border-destructive/30 bg-destructive/5 shadow-sm">
             <CardContent className="flex items-start gap-3 p-4 text-sm text-destructive">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{error}</span>
+              <span>{bannerError}</span>
             </CardContent>
           </Card>
         ) : null}
@@ -231,7 +246,7 @@ export default function AnalyticsPage() {
           onChange={setPrimaryRequest}
           data={primaryPanelData}
           loading={loading}
-          error={error}
+          error={primaryError}
           tone="primary"
         />
 
@@ -243,7 +258,7 @@ export default function AnalyticsPage() {
             onChange={setCompareRequest}
             data={secondaryPanelData}
             loading={loading}
-            error={error}
+            error={compareError}
             tone="secondary"
           />
         ) : null}
