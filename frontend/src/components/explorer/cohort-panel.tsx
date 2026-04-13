@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { AlertCircle, Check, ChevronDown, Filter, Layers3, MapPinned, Table2, X } from "lucide-react";
+import { AlertCircle, Check, ChevronDown, Layers3, MapPinned, Table2, X } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -266,7 +266,7 @@ export function CohortPanel({
             </div>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
               <Label>State filter</Label>
               <MultiSelect
@@ -291,54 +291,6 @@ export function CohortPanel({
                 disabled={loading}
               />
             </div>
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                Breakdown metric
-              </Label>
-              <select
-                className="h-8 w-full rounded-lg border border-input bg-background px-3 text-sm shadow-sm outline-none"
-                value={request.breakdown_metric}
-                onChange={(event) =>
-                  updateRequest({
-                    breakdown_metric: event.target.value as CohortRequest["breakdown_metric"],
-                  })
-                }
-                disabled={loading}
-              >
-                {BREAKDOWN_METRIC_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Breakdown dimension</Label>
-              <select
-                className="h-8 w-full rounded-lg border border-input bg-background px-3 text-sm shadow-sm outline-none"
-                value={request.breakdown_dimension}
-                onChange={(event) =>
-                  updateRequest({
-                    breakdown_dimension: event.target.value as CohortRequest["breakdown_dimension"],
-                  })
-                }
-                disabled={loading}
-              >
-                {BREAKDOWN_DIMENSION_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-end text-xs text-muted-foreground">
-              Use the dropdowns above to filter by state and property type. Leave empty to include
-              all values.
-            </div>
           </div>
         </CardContent>
       </Card>
@@ -357,6 +309,49 @@ export function CohortPanel({
       <SummaryCards summary={data?.summary ?? null} loading={loading} />
 
       <FixedCharts fixedCharts={chartData} loading={loading} />
+
+      {tone === "primary" && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Label className="text-xs font-medium text-slate-600 whitespace-nowrap">Dimension</Label>
+            <select
+              className="h-7 rounded-md border border-input bg-background px-2 text-xs shadow-sm outline-none"
+              value={request.breakdown_dimension}
+              onChange={(event) =>
+                updateRequest({
+                  breakdown_dimension: event.target.value as CohortRequest["breakdown_dimension"],
+                })
+              }
+              disabled={loading}
+            >
+              {BREAKDOWN_DIMENSION_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs font-medium text-slate-600 whitespace-nowrap">Metric</Label>
+            <select
+              className="h-7 rounded-md border border-input bg-background px-2 text-xs shadow-sm outline-none"
+              value={request.breakdown_metric}
+              onChange={(event) =>
+                updateRequest({
+                  breakdown_metric: event.target.value as CohortRequest["breakdown_metric"],
+                })
+              }
+              disabled={loading}
+            >
+              {BREAKDOWN_METRIC_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
 
       <BreakdownChart breakdown={breakdown} loading={loading} />
 
