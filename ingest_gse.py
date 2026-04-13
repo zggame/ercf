@@ -42,6 +42,16 @@ def _parse_float(value: Any) -> float | None:
     return numeric
 
 
+def _parse_int(value: Any) -> int | None:
+    numeric = _parse_float(value)
+    if numeric is None:
+        return None
+    try:
+        return int(numeric)
+    except (ValueError, TypeError):
+        return None
+
+
 def _parse_date(value: Any) -> date | None:
     if value is None:
         return None
@@ -138,6 +148,17 @@ def _row_to_output(
         "estimated_capital_amount": result.estimated_capital_amount,
         "is_affordable": loan_input.is_affordable,
         "msa": msa,
+        "original_loan_amount": loan_input.original_loan_amount,
+        "note_rate": loan_input.note_rate,
+        "original_term_months": loan_input.original_term_months,
+        "amortization_term_months": loan_input.amortization_term_months,
+        "interest_only_term": loan_input.interest_only_term,
+        "interest_only": loan_input.interest_only,
+        "rate_type": loan_input.rate_type,
+        "is_fixed_rate": loan_input.is_fixed_rate,
+        "payment_performance": loan_input.payment_performance,
+        "total_units": loan_input.total_units,
+        "occupancy_rate": loan_input.occupancy_rate,
     }
 
 
@@ -164,6 +185,10 @@ def _normalize_freddie_records(
 
     output_rows: list[dict[str, Any]] = []
     for row in latest_rows:
+        rate_type_raw = _clean_text(row.get("cd_fxfltr")) or _clean_text(row.get("code_int"))
+        rate_type = "arm" if rate_type_raw and rate_type_raw.upper() in ("A", "ARM") else "fixed"
+        io_per = _parse_int(row.get("cnt_io_per"))
+
         loan_input = LoanInput(
             loan_id=str(row.get("lnno", "")).strip(),
             original_upb=_currency_value(row.get("amt_upb_pch")),
@@ -174,6 +199,16 @@ def _normalize_freddie_records(
             is_affordable=False,
             state=_clean_text(row.get("code_st")),
             reporting_date=reporting_date,
+            original_loan_amount=_currency_value(row.get("amt_upb_pch")),
+            note_rate=_parse_float(row.get("rate_int")),
+            original_term_months=_parse_int(row.get("cnt_mrtg_term")),
+            amortization_term_months=_parse_int(row.get("cnt_amtn_per")),
+            interest_only_term=io_per,
+            interest_only=io_per > 0 if io_per is not None else False,
+            rate_type=rate_type,
+            is_fixed_rate=(rate_type == "fixed"),
+            payment_performance=_clean_text(row.get("mrtg_status")),
+            total_units=_parse_int(row.get("cnt_rsdntl_unit")),
         )
         result = engine.calculate_loan(loan_input)
         output_rows.append(
@@ -215,6 +250,10 @@ def _normalize_fannie_records(
     for row in latest_rows:
         original_upb = _currency_value(row.get("Original UPB"))
         current_upb = _currency_value(row.get("UPB - Current"))
+        rate_type_raw = _clean_text(row.get("Interest Type"))
+        rate_type = "arm" if rate_type_raw and "ARM" in rate_type_raw.upper() else "fixed"
+        io_per = _parse_int(row.get("Original I/O Term"))
+
         loan_input = LoanInput(
             loan_id=str(row.get("Loan Number", "")).strip(),
             original_upb=original_upb or current_upb,
@@ -226,6 +265,17 @@ def _normalize_fannie_records(
             state=_clean_text(row.get("Property State")),
             msa=_clean_text(row.get("Metropolitan Statistical Area")),
             reporting_date=latest_reporting_date,
+            original_loan_amount=original_upb or current_upb,
+            note_rate=_parse_float(row.get("Note Rate")) or _parse_float(row.get("Original Interest Rate")),
+            original_term_months=_parse_int(row.get("Original Term")),
+            amortization_term_months=_parse_int(row.get("Amortization Term")),
+            interest_only_term=io_per,
+            interest_only=io_per > 0 if io_per is not None else False,
+            rate_type=rate_type,
+            is_fixed_rate=(rate_type == "fixed"),
+            payment_performance=_clean_text(row.get("Loan Payment Status")),
+            total_units=_parse_int(row.get("Property Acquisition Total Unit Count")),
+            occupancy_rate=_parse_float(row.get("Physical Occupancy %")),
         )
         result = engine.calculate_loan(loan_input)
         output_rows.append(
@@ -308,6 +358,14 @@ def _read_csv_frames(input_path: Path, *, source: str) -> list[pd.DataFrame]:
             "rate_ltv",
             "code_st",
             "geographical_region",
+            "rate_int",
+            "cd_fxfltr",
+            "code_int",
+            "cnt_mrtg_term",
+            "cnt_amtn_per",
+            "cnt_io_per",
+            "mrtg_status",
+            "cnt_rsdntl_unit",
         ],
         SOURCE_FANNIE_MAE: [
             "Loan Number",
@@ -320,6 +378,15 @@ def _read_csv_frames(input_path: Path, *, source: str) -> list[pd.DataFrame]:
             "Property State",
             "Metropolitan Statistical Area",
             "Affordable Housing Type",
+            "Note Rate",
+            "Original Interest Rate",
+            "Interest Type",
+            "Original Term",
+            "Amortization Term",
+            "Original I/O Term",
+            "Loan Payment Status",
+            "Property Acquisition Total Unit Count",
+            "Physical Occupancy %",
         ],
     }
     usecols = source_usecols.get(source)
