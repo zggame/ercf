@@ -54,8 +54,27 @@ function extractErrorMessage(error: unknown) {
 
 export default function AnalyticsPage() {
   const [compareEnabled, setCompareEnabled] = useState(false);
-  const [primaryRequest, setPrimaryRequest] = useState<CohortRequest>(PRIMARY_DEFAULT);
-  const [compareRequest, setCompareRequest] = useState<CohortRequest>(COMPARE_DEFAULT);
+  const [primaryRequest, setPrimaryRequestRaw] = useState<CohortRequest>(PRIMARY_DEFAULT);
+  const [compareRequest, setCompareRequestRaw] = useState<CohortRequest>(COMPARE_DEFAULT);
+
+  // Sync breakdown dimension and metric from the primary panel to the comparison panel.
+  const setPrimaryRequest = (next: CohortRequest) => {
+    setPrimaryRequestRaw(next);
+    setCompareRequestRaw((prev) => ({
+      ...prev,
+      breakdown_dimension: next.breakdown_dimension,
+      breakdown_metric: next.breakdown_metric,
+    }));
+  };
+
+  const setCompareRequest = (next: CohortRequest) => {
+    // Keep breakdown fields locked to primary — only allow source/snapshot/filter changes.
+    setCompareRequestRaw({
+      ...next,
+      breakdown_dimension: primaryRequest.breakdown_dimension,
+      breakdown_metric: primaryRequest.breakdown_metric,
+    });
+  };
   const [primaryData, setPrimaryData] = useState<CohortExplorerResponse | null>(null);
   const [compareData, setCompareData] = useState<CompareResponse | null>(null);
   const [loading, setLoading] = useState(true);
