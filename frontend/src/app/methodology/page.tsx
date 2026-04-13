@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Info } from "lucide-react";
@@ -9,9 +10,11 @@ export default function MethodologyPage() {
         <div className="flex gap-3">
           <Info className="w-6 h-6 text-amber-600 flex-shrink-0" />
           <div>
-            <h3 className="text-lg font-semibold text-amber-900 mb-1">Refined-methodology notice</h3>
+            <h3 className="text-lg font-semibold text-amber-900 mb-1">Analytical notice</h3>
             <p className="text-amber-800 text-sm leading-relaxed">
-              This PoC explains the refined ERCF-style loan trace only. It uses curated Freddie Mac and Fannie Mae datasets, source-specific field mapping, and documented caveats. It is not an official regulatory filing engine.
+              This application is a multifamily ERCF-style PoC. It combines a stable loan-level
+              calculator contract, curated Freddie Mac and Fannie Mae portfolio cohorts, and
+              documented mapping assumptions. It is not an official regulatory filing engine.
             </p>
           </div>
         </div>
@@ -19,24 +22,46 @@ export default function MethodologyPage() {
 
       <section className="space-y-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Refined ERCF-Style Methodology</h2>
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">Current calculation path</h2>
           <p className="text-slate-600">
-            The calculator keeps a stable request and response contract, but the narrative on this page is intentionally scoped to the refined rule path. The result trace combines a source-aware base risk weight, additive multipliers, a confidence gate, and a floor on the final loan-level risk weight.
+            The current PoC exposes the core multiplier trace that drives both the single-loan
+            calculator and the curated explorer summaries.
           </p>
         </div>
 
         <Card className="shadow-sm border-slate-200">
           <CardHeader className="bg-slate-50 border-b border-slate-100">
-            <CardTitle className="text-lg font-mono">Refined flow</CardTitle>
+            <CardTitle className="text-lg font-mono">Formula</CardTitle>
           </CardHeader>
           <CardContent className="p-6 space-y-4">
             <div className="bg-slate-900 text-slate-50 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-              final_risk_weight = max(base_risk_weight * combined_multiplier, floor_value)
+              final_factor = base_weight * ltv_multiplier * dscr_multiplier * property_multiplier *
+              affordability_multiplier
               <br />
-              capital_amount = current_upb * final_risk_weight
+              capital_amount = current_upb * final_factor
             </div>
             <p className="text-sm text-slate-600">
-              If confidence falls below the configured threshold, the refined result is suppressed and the contract still returns the trace fields needed for debugging and review. The legacy capital-factor fields remain in the API for compatibility, but the product copy on this page stays centered on the refined ERCF-style logic.
+              The API stays stable around the current multiplier trace:
+              <code className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">
+                base_weight
+              </code>
+              ,
+              <code className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">
+                ltv_multiplier
+              </code>
+              ,
+              <code className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">
+                dscr_multiplier
+              </code>
+              ,
+              <code className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">
+                property_multiplier
+              </code>
+              , and
+              <code className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">
+                affordability_multiplier
+              </code>
+              .
             </p>
           </CardContent>
         </Card>
@@ -44,9 +69,11 @@ export default function MethodologyPage() {
 
       <section className="space-y-4">
         <div>
-          <h3 className="text-xl font-bold text-slate-900 mb-2">Source-specific mapping</h3>
+          <h3 className="text-xl font-bold text-slate-900 mb-2">Inputs and mapping</h3>
           <p className="text-slate-600">
-            Freddie Mac and Fannie Mae expose similar loan concepts through different file layouts. The PoC uses source-specific adapters to normalize those fields into one canonical schema before the refined trace is computed.
+            Freddie Mac and Fannie Mae expose similar business concepts through different raw field
+            names. The PoC normalizes those concepts into one cohort contract for the explorer while
+            keeping the loan-level calculator focused on the current core proxy inputs.
           </p>
         </div>
 
@@ -54,35 +81,46 @@ export default function MethodologyPage() {
           <Table>
             <TableHeader className="bg-slate-50">
               <TableRow>
-                <TableHead className="w-[180px]">Source</TableHead>
-                <TableHead>Canonical fields used</TableHead>
-                <TableHead>Mapping notes</TableHead>
+                <TableHead className="w-[180px]">Area</TableHead>
+                <TableHead>What the PoC uses today</TableHead>
+                <TableHead>Why it matters</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               <TableRow>
-                <TableCell className="font-medium align-top">Freddie Mac</TableCell>
+                <TableCell className="font-medium align-top">Loan calculator</TableCell>
                 <TableCell className="align-top">
-                  <code className="rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">rate_dcr</code>,{" "}
-                  <code className="rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">rate_ltv</code>,{" "}
-                  <code className="rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">amt_upb_endg</code>,{" "}
-                  <code className="rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">code_st</code>, quartered panel rows
+                  Current UPB, original UPB, LTV, DSCR, property type, affordability flag, and
+                  data-quality-sensitive optional fields.
                 </TableCell>
                 <TableCell className="align-top">
-                  The recent Freddie split-file release is treated as one curated panel, with the newer window preferred for current-period views and the older window retained when a historical panel is needed.
+                  These drive the multiplier trace returned by
+                  <code className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">
+                    /api/calculate
+                  </code>
+                  .
                 </TableCell>
               </TableRow>
               <TableRow>
-                <TableCell className="font-medium align-top">Fannie Mae</TableCell>
+                <TableCell className="font-medium align-top">Curated explorer</TableCell>
                 <TableCell className="align-top">
-                  <code className="rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">Underwritten DSCR</code>,{" "}
-                  <code className="rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">Loan Acquisition LTV</code>,{" "}
-                  <code className="rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">UPB - Current</code>,{" "}
-                  <code className="rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">Original UPB</code>,{" "}
-                  <code className="rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">Property State</code>
+                  Source, snapshot, state, property type, current and original UPB, DSCR, LTV, and
+                  estimated capital outputs for each curated cohort row.
                 </TableCell>
                 <TableCell className="align-top">
-                  The main multifamily file is the canonical source. The annual DSCR file is an optional enrichment table, not a launch dependency.
+                  These fields power the summary cards, fixed charts, breakdown chart, compare
+                  deltas, and drilldown table.
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell className="font-medium align-top">Source-specific adapters</TableCell>
+                <TableCell className="align-top">
+                  Freddie Mac and Fannie Mae are mapped independently before they enter the shared
+                  cohort contract.
+                </TableCell>
+                <TableCell className="align-top">
+                  The two GSE datasets are conceptually similar but structurally different, so one
+                  raw parser is not enough.
                 </TableCell>
               </TableRow>
             </TableBody>
@@ -92,73 +130,33 @@ export default function MethodologyPage() {
 
       <section className="space-y-4">
         <div>
-          <h3 className="text-xl font-bold text-slate-900 mb-2">Curated dataset inputs</h3>
+          <h3 className="text-xl font-bold text-slate-900 mb-2">Deployment posture</h3>
           <p className="text-slate-600">
-            The deployed PoC is designed around curated offline snapshots, not live portal ingestion. That keeps the review experience deterministic and avoids depending on credentials, expiring URLs, or registration flows at runtime.
+            The deployed reviewer experience is intended to be read-only and based on curated local
+            artifacts. The compare panel in the explorer is part of that reviewer workflow. The
+            dataset-management screen remains an internal preparation surface, not a required PoC
+            path for reviewers.
           </p>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
           <Card className="shadow-sm border-slate-200">
             <CardHeader className="py-4 border-b border-slate-100">
-              <CardTitle className="text-base">Freddie Mac snapshot</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 text-sm text-slate-600 space-y-2">
-              <p>Use the curated Freddie snapshot prepared from the local ZIP artifacts.</p>
-              <p>The access research notes that the public download flow is form-gated and session-scoped, so the PoC should not rely on live downloads in the product runtime.</p>
-            </CardContent>
-          </Card>
-          <Card className="shadow-sm border-slate-200">
-            <CardHeader className="py-4 border-b border-slate-100">
-              <CardTitle className="text-base">Fannie Mae snapshot</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 text-sm text-slate-600 space-y-2">
-              <p>Use the curated Fannie main multifamily file as the base snapshot, with the supplemental DSCR file available only as enrichment.</p>
-              <p>The research note documents authenticated portal access and short-lived signed URLs, which is why the deployed PoC stays read-only and offline.</p>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div>
-          <h3 className="text-xl font-bold text-slate-900 mb-2">Caveats</h3>
-          <p className="text-slate-600">
-            The refined trace is intentionally opinionated. The caveats below explain where the PoC uses documented assumptions instead of source-native fields.
-          </p>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card className="shadow-sm border-slate-200">
-            <CardHeader className="py-4 border-b border-slate-100">
-              <CardTitle className="text-base">Confidence gating</CardTitle>
+              <CardTitle className="text-base">Compare mode</CardTitle>
             </CardHeader>
             <CardContent className="pt-4 text-sm text-slate-600">
-              When rule-critical inputs are missing, the confidence score can suppress the refined result. The trace still exposes the missing and inferred inputs so reviewers can see why the result was withheld.
+              The explorer supports an optional compare panel for cohort-vs-cohort analysis. This
+              methodology page describes the shared analytical framing behind those outputs rather
+              than a separate alternate rule set.
             </CardContent>
           </Card>
           <Card className="shadow-sm border-slate-200">
             <CardHeader className="py-4 border-b border-slate-100">
-              <CardTitle className="text-base">Derived fields</CardTitle>
+              <CardTitle className="text-base">Curated artifacts</CardTitle>
             </CardHeader>
             <CardContent className="pt-4 text-sm text-slate-600">
-              Some public fields map imperfectly to ERCF-style concepts. Where a source does not provide an exact match, the PoC uses the documented proxy or a canonicalized source-specific equivalent instead of inventing a new input.
-            </CardContent>
-          </Card>
-          <Card className="shadow-sm border-slate-200">
-            <CardHeader className="py-4 border-b border-slate-100">
-              <CardTitle className="text-base">No comparison mode</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 text-sm text-slate-600">
-              This page does not describe a base-vs-refined switch or compare workflow. The product semantics are refined-only.
-            </CardContent>
-          </Card>
-          <Card className="shadow-sm border-slate-200">
-            <CardHeader className="py-4 border-b border-slate-100">
-              <CardTitle className="text-base">Read-only deployment</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 text-sm text-slate-600">
-              The deployed PoC should not require portal credentials, upload workflows, or live dataset refreshes. Those mechanics stay in offline research and preparation steps.
+              The PoC is intended to run from prebuilt local snapshots so it does not depend on
+              portal credentials, registration flows, or expiring signed URLs at runtime.
             </CardContent>
           </Card>
         </div>
@@ -167,12 +165,18 @@ export default function MethodologyPage() {
       <section className="space-y-3">
         <h3 className="text-xl font-bold text-slate-900">References</h3>
         <div className="flex flex-col gap-3 text-sm">
-          <a href="/docs/gse-data/data-access-research.md" className="text-blue-700 underline underline-offset-4">
+          <Link
+            href="/references/data-access"
+            className="text-blue-700 underline underline-offset-4"
+          >
             Data access research
-          </a>
-          <a href="/docs/gse-data/dataset-findings.md" className="text-blue-700 underline underline-offset-4">
+          </Link>
+          <Link
+            href="/references/dataset-findings"
+            className="text-blue-700 underline underline-offset-4"
+          >
             Dataset findings
-          </a>
+          </Link>
         </div>
       </section>
     </div>

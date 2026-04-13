@@ -638,6 +638,37 @@ class TestERCFEngine(unittest.TestCase):
         self.assertEqual(uploaded.total_units, 100)
         self.assertEqual(uploaded.qualifying_units, 50)
 
+    def test_calculator_api_response_keeps_multiplier_trace_fields(self):
+        client = TestClient(main.app)
+        response = client.post(
+            "/api/calculate",
+            json={
+                "loan_id": "TRACE-API-1",
+                "original_upb": 1000,
+                "current_upb": 1000,
+                "dscr": 1.25,
+                "ltv": 0.70,
+                "property_type": "Multifamily",
+                "is_affordable": True,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+
+        for field in (
+            "estimated_capital_factor",
+            "estimated_capital_amount",
+            "base_weight",
+            "ltv_multiplier",
+            "dscr_multiplier",
+            "property_multiplier",
+            "affordability_multiplier",
+            "data_quality_score",
+        ):
+            with self.subTest(field=field):
+                self.assertIn(field, body)
+
 
 class TestExplorerContracts(unittest.TestCase):
     def test_portfolio_cohort_request_accepts_source_and_filters(self):
