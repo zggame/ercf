@@ -173,3 +173,83 @@ class PortfolioSummary(BaseModel):
     minimum_confidence_score: int = 0
     total_missing_input_count: int = 0
     missing_input_counts_by_field: dict[str, int] = {}
+
+
+class CohortRequest(BaseModel):
+    source: str
+    snapshot: str
+    filters: dict[str, list[str] | list[float] | list[int]] = Field(default_factory=dict)
+    breakdown_dimension: str = "state"
+    breakdown_metric: str = "current_upb_total"
+
+
+class CohortSummary(BaseModel):
+    loan_count: int
+    original_upb_total: float
+    current_upb_total: float
+    wa_dscr: float
+    wa_ltv: float
+    wa_estimated_capital_factor: float
+    total_estimated_capital_amount: float
+
+
+class BreakdownRow(BaseModel):
+    key: str
+    value: float
+
+
+class FixedChartPoint(BaseModel):
+    label: str
+    value: float
+
+
+class FixedChartSeries(BaseModel):
+    points: list[FixedChartPoint]
+
+
+class BreakdownResponse(BaseModel):
+    dimension: str
+    metric: str
+    rows: list[BreakdownRow]
+
+
+class DrilldownRow(BaseModel):
+    loan_id: str
+    source: str
+    reporting_date: Optional[date] = None
+    property_type: Optional[str] = None
+    state: Optional[str] = None
+    current_upb: float
+    dscr: float
+    ltv: float
+    estimated_capital_factor: float
+    estimated_capital_amount: float
+
+
+class CohortExplorerResponse(BaseModel):
+    cohort_label: str
+    summary: CohortSummary
+    fixed_charts: dict[str, FixedChartSeries]
+    breakdown: BreakdownResponse
+    drilldown_rows: list[DrilldownRow]
+
+
+class CompareRequest(BaseModel):
+    left: CohortRequest
+    right: CohortRequest
+
+
+class CohortComparisonDeltas(BaseModel):
+    loan_count: float
+    original_upb_total: float
+    current_upb_total: float
+    wa_dscr: float
+    wa_ltv: float
+    wa_estimated_capital_factor: float
+    total_estimated_capital_amount: float
+
+
+class CompareResponse(BaseModel):
+    left: CohortExplorerResponse
+    right: CohortExplorerResponse
+    deltas: CohortComparisonDeltas

@@ -1,179 +1,184 @@
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Info } from "lucide-react";
 
 export default function MethodologyPage() {
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-12">
-      <div className="border-l-4 border-amber-500 bg-amber-50 p-6 rounded-r-lg">
+    <div className="max-w-5xl mx-auto space-y-8 pb-12">
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
         <div className="flex gap-3">
           <Info className="w-6 h-6 text-amber-600 flex-shrink-0" />
           <div>
-            <h3 className="text-lg font-semibold text-amber-900 mb-1">Important Analytical Notice</h3>
+            <h3 className="text-lg font-semibold text-amber-900 mb-1">Analytical notice</h3>
             <p className="text-amber-800 text-sm leading-relaxed">
-              This tool provides an <strong>analytical approximation</strong> for multifamily ERCF-style capital analysis.
-              It utilizes configurable proxies, estimated multipliers, and simplified risk-weight logic. It should not be treated as an official regulatory capital filing engine.
+              This application is a multifamily ERCF-style PoC. It combines a stable loan-level
+              calculator contract, curated Freddie Mac and Fannie Mae portfolio cohorts, and
+              documented mapping assumptions. It is not an official regulatory filing engine.
             </p>
           </div>
         </div>
       </div>
 
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900 mb-2">Calculation Methodology</h2>
-        <p className="text-slate-600 mb-6">Overview of how the proxy capital factor is derived from loan attributes.</p>
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">Current calculation path</h2>
+          <p className="text-slate-600">
+            The current PoC exposes the core multiplier trace that drives both the single-loan
+            calculator and the curated explorer summaries.
+          </p>
+        </div>
 
-        <Card className="shadow-sm border-slate-200 mb-8">
+        <Card className="shadow-sm border-slate-200">
           <CardHeader className="bg-slate-50 border-b border-slate-100">
             <CardTitle className="text-lg font-mono">Formula</CardTitle>
           </CardHeader>
-          <CardContent className="p-6">
+          <CardContent className="p-6 space-y-4">
             <div className="bg-slate-900 text-slate-50 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-              Final Capital Factor = Base Weight × LTV Multiplier × DSCR Multiplier × Property Multiplier × Affordability Multiplier
-              <br /><br />
-              Capital Amount = Current UPB × Final Capital Factor
+              final_factor = base_weight * ltv_multiplier * dscr_multiplier * property_multiplier *
+              affordability_multiplier
+              <br />
+              capital_amount = current_upb * final_factor
             </div>
+            <p className="text-sm text-slate-600">
+              The API stays stable around the current multiplier trace:
+              <code className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">
+                base_weight
+              </code>
+              ,
+              <code className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">
+                ltv_multiplier
+              </code>
+              ,
+              <code className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">
+                dscr_multiplier
+              </code>
+              ,
+              <code className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">
+                property_multiplier
+              </code>
+              , and
+              <code className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">
+                affordability_multiplier
+              </code>
+              .
+            </p>
           </CardContent>
         </Card>
+      </section>
 
-        <h3 className="text-xl font-bold text-slate-900 mb-4">Assumption Thresholds (Configurable)</h3>
+      <section className="space-y-4">
+        <div>
+          <h3 className="text-xl font-bold text-slate-900 mb-2">Inputs and mapping</h3>
+          <p className="text-slate-600">
+            Freddie Mac and Fannie Mae expose similar business concepts through different raw field
+            names. The PoC normalizes those concepts into one cohort contract for the explorer while
+            keeping the loan-level calculator focused on the current core proxy inputs.
+          </p>
+        </div>
+
         <Card className="shadow-sm border-slate-200 overflow-hidden">
           <Table>
             <TableHeader className="bg-slate-50">
               <TableRow>
-                <TableHead className="w-[200px]">Parameter</TableHead>
-                <TableHead>Band / Condition</TableHead>
-                <TableHead className="text-right">Multiplier</TableHead>
+                <TableHead className="w-[180px]">Area</TableHead>
+                <TableHead>What the PoC uses today</TableHead>
+                <TableHead>Why it matters</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               <TableRow>
-                <TableCell className="font-medium">Base Risk Weight</TableCell>
-                <TableCell>Default Starting Value</TableCell>
-                <TableCell className="text-right font-mono">0.50</TableCell>
+                <TableCell className="font-medium align-top">Loan calculator</TableCell>
+                <TableCell className="align-top">
+                  Current UPB, original UPB, LTV, DSCR, property type, affordability flag, and
+                  data-quality-sensitive optional fields.
+                </TableCell>
+                <TableCell className="align-top">
+                  These drive the multiplier trace returned by
+                  <code className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">
+                    /api/calculate
+                  </code>
+                  .
+                </TableCell>
               </TableRow>
               <TableRow>
-                <TableCell rowSpan={5} className="font-medium align-top border-b">LTV Multiplier</TableCell>
-                <TableCell>≤ 60%</TableCell>
-                <TableCell className="text-right font-mono">0.80</TableCell>
+                <TableCell className="font-medium align-top">Curated explorer</TableCell>
+                <TableCell className="align-top">
+                  Source, snapshot, state, property type, current and original UPB, DSCR, LTV, and
+                  estimated capital outputs for each curated cohort row.
+                </TableCell>
+                <TableCell className="align-top">
+                  These fields power the summary cards, fixed charts, breakdown chart, compare
+                  deltas, and drilldown table.
+                </TableCell>
               </TableRow>
               <TableRow>
-                <TableCell>60% - 70%</TableCell>
-                <TableCell className="text-right font-mono">1.00</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>70% - 80%</TableCell>
-                <TableCell className="text-right font-mono">1.20</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>80% - 100%</TableCell>
-                <TableCell className="text-right font-mono">1.50</TableCell>
-              </TableRow>
-              <TableRow className="border-b">
-                <TableCell>&gt; 100%</TableCell>
-                <TableCell className="text-right font-mono">2.00</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell rowSpan={4} className="font-medium align-top border-b">DSCR Multiplier</TableCell>
-                <TableCell>≤ 1.00x</TableCell>
-                <TableCell className="text-right font-mono">1.50</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>1.00x - 1.25x</TableCell>
-                <TableCell className="text-right font-mono">1.20</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>1.25x - 1.50x</TableCell>
-                <TableCell className="text-right font-mono">1.00</TableCell>
-              </TableRow>
-              <TableRow className="border-b">
-                <TableCell>&gt; 1.50x</TableCell>
-                <TableCell className="text-right font-mono">0.80</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Property Type</TableCell>
-                <TableCell>Seniors / Student / Manufactured</TableCell>
-                <TableCell className="text-right font-mono">1.05 - 1.15</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Affordability</TableCell>
-                <TableCell>Mission-Driven Flag = True</TableCell>
-                <TableCell className="text-right font-mono">0.90</TableCell>
+                <TableCell className="font-medium align-top">Source-specific adapters</TableCell>
+                <TableCell className="align-top">
+                  Freddie Mac and Fannie Mae are mapped independently before they enter the shared
+                  cohort contract.
+                </TableCell>
+                <TableCell className="align-top">
+                  The two GSE datasets are conceptually similar but structurally different, so one
+                  raw parser is not enough.
+                </TableCell>
               </TableRow>
             </TableBody>
           </Table>
         </Card>
-      </div>
+      </section>
 
-      <div className="pt-6">
-        <h2 className="text-2xl font-bold text-slate-900 mb-2">Data Quality & Inferences</h2>
-        <p className="text-slate-600 mb-6">How public dataset mappings handle missing or proxy fields.</p>
+      <section className="space-y-4">
+        <div>
+          <h3 className="text-xl font-bold text-slate-900 mb-2">Deployment posture</h3>
+          <p className="text-slate-600">
+            The deployed reviewer experience is intended to be read-only and based on curated local
+            artifacts. The compare panel in the explorer is part of that reviewer workflow. The
+            dataset-management screen remains an internal preparation surface, not a required PoC
+            path for reviewers.
+          </p>
+        </div>
 
-        <div className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-2">
           <Card className="shadow-sm border-slate-200">
-            <CardHeader className="py-4">
-              <CardTitle className="text-base">Inferred Fields</CardTitle>
+            <CardHeader className="py-4 border-b border-slate-100">
+              <CardTitle className="text-base">Compare mode</CardTitle>
             </CardHeader>
-            <CardContent className="text-sm text-slate-600">
-              When exact regulatory fields (e.g., underwritten NOI, exact valuation date) are missing from public datasets, the engine relies on LTV and DSCR proxies provided in the dataset or calculated from current UPB and original value.
+            <CardContent className="pt-4 text-sm text-slate-600">
+              The explorer supports an optional compare panel for cohort-vs-cohort analysis. This
+              methodology page describes the shared analytical framing behind those outputs rather
+              than a separate alternate rule set.
             </CardContent>
           </Card>
           <Card className="shadow-sm border-slate-200">
-            <CardHeader className="py-4">
-              <CardTitle className="text-base">Data Quality Score</CardTitle>
+            <CardHeader className="py-4 border-b border-slate-100">
+              <CardTitle className="text-base">Curated artifacts</CardTitle>
             </CardHeader>
-            <CardContent className="text-sm text-slate-600">
-              A basic heuristic (0-100) assigned per loan. A score of 100 indicates all primary fields (UPB, LTV, DSCR, Property Type, Occupancy, Value) are present. Deductions occur for missing non-critical fields where default multipliers are applied.
+            <CardContent className="pt-4 text-sm text-slate-600">
+              The PoC is intended to run from prebuilt local snapshots so it does not depend on
+              portal credentials, registration flows, or expiring signed URLs at runtime.
             </CardContent>
           </Card>
         </div>
-      </div>
+      </section>
 
-      <div className="pt-6">
-        <h2 className="text-2xl font-bold text-slate-900 mb-2">Confidence Scoring & Result Suppression</h2>
-        <p className="text-slate-600 mb-6">How the loan-level ERCF rule evaluates input completeness and suppresses uncertain results.</p>
-
-        <div className="space-y-4">
-          <Card className="shadow-sm border-slate-200">
-            <CardHeader className="py-4">
-              <CardTitle className="text-base">Confidence Score</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-slate-600">
-              The confidence score (0-100) reflects how many rule-critical loan inputs are present. 
-              Missing fields such as rate_type, payment_performance, original_loan_amount, interest_only, 
-              original_term_months, and amortization_term_months reduce the score by configured penalties.
-            </CardContent>
-          </Card>
-          <Card className="shadow-sm border-slate-200">
-            <CardHeader className="py-4">
-              <CardTitle className="text-base">Result Suppression</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-slate-600">
-              When the confidence score falls below the configured threshold (default: 70), the loan-level 
-              ERCF result is suppressed and marked unavailable. The legacy proxy results remain accessible 
-              regardless of confidence. Subsidy treatment and floor logic only apply when results are available.
-            </CardContent>
-          </Card>
-          <Card className="shadow-sm border-slate-200">
-            <CardHeader className="py-4">
-              <CardTitle className="text-base">Subsidy Multiplier</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-slate-600">
-              Loans with qualifying government subsidy types (LIHTC, Section 8, Section 515, etc.) receive 
-              a subsidy multiplier based on the share of qualifying units. A 100% qualifying share yields 
-              a 0.6 multiplier; partial shares scale proportionally.
-            </CardContent>
-          </Card>
-          <Card className="shadow-sm border-slate-200">
-            <CardHeader className="py-4">
-              <CardTitle className="text-base">Risk Weight Floor</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-slate-600">
-              The loan-level ERCF rule enforces a minimum 20% risk weight floor. When the calculated 
-              adjusted risk weight falls below this threshold, the floor is applied and flagged in the result.
-            </CardContent>
-          </Card>
+      <section className="space-y-3">
+        <h3 className="text-xl font-bold text-slate-900">References</h3>
+        <div className="flex flex-col gap-3 text-sm">
+          <Link
+            href="/references/data-access"
+            className="text-blue-700 underline underline-offset-4"
+          >
+            Data access research
+          </Link>
+          <Link
+            href="/references/dataset-findings"
+            className="text-blue-700 underline underline-offset-4"
+          >
+            Dataset findings
+          </Link>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

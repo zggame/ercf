@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calculator, Database, ShieldAlert, LineChart } from "lucide-react";
+import { Calculator, ShieldAlert, LineChart, ArrowRightLeft, Table2 } from "lucide-react";
 
 export default function Home() {
   return (
@@ -13,25 +13,26 @@ export default function Home() {
         </div>
         <div className="relative z-10 max-w-2xl">
           <div className="inline-block px-3 py-1 mb-4 text-xs font-semibold text-blue-700 bg-blue-100 rounded-full">
-            Internal Strategy Tool
+            Explorer-first PoC
           </div>
           <h1 className="text-4xl font-bold tracking-tight text-slate-900 mb-4">
-            Multifamily ERCF <br/> Capital Analytics
+            Multifamily ERCF <br/> Dataset Explorer
           </h1>
           <p className="text-lg text-slate-600 mb-8">
-            Calculate loan-level capital results and analyze public GSE multifamily portfolios using configurable FHFA ERCF-style methodology.
+            Inspect curated Freddie Mac and Fannie Mae cohorts, compare them side by side, and
+            drill into the same ERCF-style outputs used across the app.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
-            <Link href="/calculator">
+            <Link href="/analytics">
               <Button size="lg" className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 shadow-sm gap-2">
-                <Calculator className="w-4 h-4" />
-                Analyze a Loan
+                <ArrowRightLeft className="w-4 h-4" />
+                Open Explorer
               </Button>
             </Link>
-            <Link href="/dataset">
+            <Link href="/calculator">
               <Button size="lg" variant="outline" className="w-full sm:w-auto shadow-sm gap-2">
-                <Database className="w-4 h-4" />
-                Load Public Data
+                <Calculator className="w-4 h-4" />
+                Single Loan Calculator
               </Button>
             </Link>
           </div>
@@ -42,34 +43,37 @@ export default function Home() {
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="shadow-sm border-slate-200 transition-all hover:shadow-md">
           <CardHeader>
-            <Calculator className="w-8 h-8 text-blue-600 mb-2" />
-            <CardTitle>Single Loan Engine</CardTitle>
-            <CardDescription>Evaluate individual multifamily assets</CardDescription>
-          </CardHeader>
-          <CardContent className="text-sm text-slate-600">
-            Input detailed loan attributes including balance, LTV, DSCR, and property type to estimate ERCF-style capital requirements and view intermediate risk multipliers.
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm border-slate-200 transition-all hover:shadow-md">
-          <CardHeader>
-            <Database className="w-8 h-8 text-blue-600 mb-2" />
-            <CardTitle>Portfolio Scaling</CardTitle>
-            <CardDescription>GSE public dataset ingestion</CardDescription>
-          </CardHeader>
-          <CardContent className="text-sm text-slate-600">
-            Load and map Fannie Mae and Freddie Mac multifamily loan performance datasets to a canonical schema for bulk capital calculation.
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm border-slate-200 transition-all hover:shadow-md">
-          <CardHeader>
             <LineChart className="w-8 h-8 text-blue-600 mb-2" />
-            <CardTitle>Analytics & Statistics</CardTitle>
-            <CardDescription>Distributions and key observations</CardDescription>
+            <CardTitle>Dataset Explorer</CardTitle>
+            <CardDescription>Curated cohorts with fixed outputs and drilldown</CardDescription>
           </CardHeader>
           <CardContent className="text-sm text-slate-600">
-            Visualize capital factors across origination years, property types, and credit risk bands to identify strategic opportunities in the multifamily sector.
+            Open the main analytics surface to inspect summary cards, fixed charts, a configurable
+            breakdown, and a sortable drilldown table for Freddie Mac or Fannie Mae cohorts.
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm border-slate-200 transition-all hover:shadow-md">
+          <CardHeader>
+            <ArrowRightLeft className="w-8 h-8 text-blue-600 mb-2" />
+            <CardTitle>Compare Panel</CardTitle>
+            <CardDescription>Optional side-by-side cohort analysis</CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm text-slate-600">
+            Enable compare mode when you want symmetric panels with the same controls and a shared
+            delta summary across the most important metrics.
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm border-slate-200 transition-all hover:shadow-md">
+          <CardHeader>
+            <Table2 className="w-8 h-8 text-blue-600 mb-2" />
+            <CardTitle>Methodology</CardTitle>
+            <CardDescription>Explains the ERCF-style assumptions</CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm text-slate-600">
+            Review the refined methodology, field mapping, and caveats that support the explorer and
+            the single-loan calculator.
           </CardContent>
         </Card>
       </section>

@@ -1,217 +1,286 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, ScatterChart, Scatter, ZAxis } from "recharts";
 import axios from "axios";
-import type { PortfolioSummary, LoanWithResult } from "@/types/api";
+import { useEffect, useState } from "react";
+import { AlertCircle, ArrowRightLeft, ChartColumn, Layers3 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { CompareDeltaCards } from "@/components/explorer/compare-delta-cards";
+import { CohortPanel } from "@/components/explorer/cohort-panel";
+import type {
+  CohortExplorerResponse,
+  CohortRequest,
+  CompareResponse,
+} from "@/types/api";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+const PRIMARY_DEFAULT: CohortRequest = {
+  source: "freddie_mac",
+  snapshot: "2025Q3",
+  filters: {
+    state: [],
+    property_type: [],
+  },
+  breakdown_dimension: "state",
+  breakdown_metric: "current_upb_total",
+};
+
+const COMPARE_DEFAULT: CohortRequest = {
+  source: "fannie_mae",
+  snapshot: "202509",
+  filters: {
+    state: [],
+    property_type: [],
+  },
+  breakdown_dimension: "state",
+  breakdown_metric: "current_upb_total",
+};
+
+function extractErrorMessage(error: unknown) {
+  if (axios.isAxiosError(error)) {
+    const detail = error.response?.data?.detail;
+    if (typeof detail === "string") {
+      return detail;
+    }
+    if (Array.isArray(detail) && detail.length > 0) {
+      return "The explorer request was rejected by the backend.";
+    }
+  }
+
+  return error instanceof Error ? error.message : "Unable to load the dataset explorer.";
+}
+
 export default function AnalyticsPage() {
-  const [summary, setSummary] = useState<PortfolioSummary | null>(null);
-  const [results, setResults] = useState<LoanWithResult[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [compareEnabled, setCompareEnabled] = useState(false);
+  const [primaryRequest, setPrimaryRequestRaw] = useState<CohortRequest>(PRIMARY_DEFAULT);
+  const [compareRequest, setCompareRequestRaw] = useState<CohortRequest>(COMPARE_DEFAULT);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [summaryRes, resultsRes] = await Promise.all([
-          axios.get<PortfolioSummary>(`${API_URL}/api/portfolio/summary`),
-          axios.get<LoanWithResult[]>(`${API_URL}/api/portfolio/results`),
-        ]);
-        setSummary(summaryRes.data);
-        setResults(resultsRes.data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
-
-  const getDistributionData = () => {
-    const bands = [
-      { label: "< 0.5", min: 0, max: 0.5 },
-      { label: "0.5 - 0.7", min: 0.5, max: 0.7 },
-      { label: "0.7 - 1.0", min: 0.7, max: 1.0 },
-      { label: "1.0 - 1.5", min: 1.0, max: 1.5 },
-      { label: "> 1.5", min: 1.5, max: Infinity },
-    ];
-    return bands.map(band => {
-      const loans = results.filter(r => r.result.estimated_capital_factor >= band.min && r.result.estimated_capital_factor < band.max);
-      return {
-        riskBand: band.label,
-        count: loans.length,
-        avgCap: loans.length > 0 ? loans.reduce((sum, r) => sum + r.result.estimated_capital_factor, 0) / loans.length : 0,
-      };
-    });
-  };
-
-  const getScatterData = () => {
-    return results.map(r => ({
-      loan_id: r.loan.loan_id,
-      dscr: r.loan.dscr,
-      ltv: r.loan.ltv,
-      cap: r.result.estimated_capital_factor,
+  // Sync breakdown dimension and metric from the primary panel to the comparison panel.
+  const setPrimaryRequest = (next: CohortRequest) => {
+    setPrimaryRequestRaw(next);
+    setCompareRequestRaw((prev) => ({
+      ...prev,
+      breakdown_dimension: next.breakdown_dimension,
+      breakdown_metric: next.breakdown_metric,
     }));
   };
 
-  if (loading) {
-    return <div className="flex justify-center items-center h-full">Loading analytics...</div>;
-  }
+  const setCompareRequest = (next: CohortRequest) => {
+    // Keep breakdown fields locked to primary — only allow source/snapshot/filter changes.
+    setCompareRequestRaw({
+      ...next,
+      breakdown_dimension: primaryRequest.breakdown_dimension,
+      breakdown_metric: primaryRequest.breakdown_metric,
+    });
+  };
+  const [primaryData, setPrimaryData] = useState<CohortExplorerResponse | null>(null);
+  const [compareData, setCompareData] = useState<CompareResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [primaryError, setPrimaryError] = useState<string | null>(null);
+  const [compareError, setCompareError] = useState<string | null>(null);
+
+  const requestSignature = JSON.stringify({
+    compareEnabled,
+    primaryRequest,
+    compareRequest,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadExplorer = async () => {
+      setLoading(true);
+      setPrimaryError(null);
+      setCompareError(null);
+
+      try {
+        if (compareEnabled) {
+          const [primaryResult, compareResult] = await Promise.allSettled([
+            axios.post<CohortExplorerResponse>(`${API_URL}/api/explorer/cohort`, primaryRequest),
+            axios.post<CompareResponse>(`${API_URL}/api/explorer/compare`, {
+              left: primaryRequest,
+              right: compareRequest,
+            }),
+          ]);
+
+          if (cancelled) {
+            return;
+          }
+
+          if (primaryResult.status === "fulfilled") {
+            setPrimaryData(primaryResult.value.data);
+          } else {
+            setPrimaryError(extractErrorMessage(primaryResult.reason));
+            setPrimaryData(null);
+          }
+
+          if (compareResult.status === "fulfilled") {
+            setCompareData(compareResult.value.data);
+          } else {
+            setCompareError(extractErrorMessage(compareResult.reason));
+            setCompareData(null);
+          }
+        } else {
+          const response = await axios.post<CohortExplorerResponse>(
+            `${API_URL}/api/explorer/cohort`,
+            primaryRequest
+          );
+
+          if (cancelled) {
+            return;
+          }
+
+          setPrimaryData(response.data);
+          setCompareData(null);
+          setPrimaryError(null);
+        }
+      } catch (requestError) {
+        if (cancelled) {
+          return;
+        }
+
+        setPrimaryError(extractErrorMessage(requestError));
+        setPrimaryData(null);
+        setCompareData(null);
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    const timeout = window.setTimeout(loadExplorer, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [requestSignature, compareEnabled, compareRequest, primaryRequest]);
+
+  const panelGridClassName = compareEnabled
+    ? "grid grid-cols-1 gap-6 xl:grid-cols-2"
+    : "grid grid-cols-1 gap-6";
+
+  const primaryPanelData = compareEnabled ? primaryData ?? compareData?.left ?? null : primaryData;
+  const secondaryPanelData = compareEnabled ? compareData?.right ?? null : null;
+  const bannerError = primaryError ?? compareError;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900">Portfolio Analytics</h2>
-          <p className="text-slate-600">Aggregated ERCF proxy results across loaded datasets</p>
+    <div className="mx-auto max-w-7xl space-y-6 pb-6">
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-3xl space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-700">
+              <Layers3 className="h-3.5 w-3.5" />
+              Dataset Explorer
+            </div>
+            <div>
+              <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
+                Cohort explorer with an optional compare panel
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                Explore curated Freddie Mac and Fannie Mae cohorts, inspect the fixed chart set,
+                and switch on compare mode when you want symmetric side-by-side analysis.
+              </p>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            variant={compareEnabled ? "secondary" : "outline"}
+            className="gap-2"
+            onClick={() => setCompareEnabled((current) => !current)}
+          >
+            <ArrowRightLeft className="h-4 w-4" />
+            {compareEnabled ? "Hide compare" : "Enable compare"}
+          </Button>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="shadow-sm">
-          <CardContent className="p-6">
-            <p className="text-sm font-medium text-slate-500">Total Loans</p>
-            <h3 className="text-2xl font-bold text-slate-900 mt-2">{summary?.loan_count || 0}</h3>
-          </CardContent>
-        </Card>
-        <Card className="shadow-sm">
-          <CardContent className="p-6">
-            <p className="text-sm font-medium text-slate-500">Current UPB</p>
-            <h3 className="text-2xl font-bold text-slate-900 mt-2">
-              ${((summary?.current_upb_total || 0) / 1000000).toFixed(1)}M
-            </h3>
-          </CardContent>
-        </Card>
-        <Card className="shadow-sm bg-blue-50 border-blue-100">
-          <CardContent className="p-6">
-            <p className="text-sm font-medium text-blue-800">WA Capital Factor</p>
-            <h3 className="text-2xl font-bold text-blue-900 mt-2">
-              {((summary?.wa_estimated_capital_factor || 0) * 100).toFixed(2)}%
-            </h3>
-          </CardContent>
-        </Card>
-        <Card className="shadow-sm bg-emerald-50 border-emerald-100">
-          <CardContent className="p-6">
-            <p className="text-sm font-medium text-emerald-800">Est. Total Capital</p>
-            <h3 className="text-2xl font-bold text-emerald-900 mt-2">
-              ${((summary?.total_estimated_capital_amount || 0) / 1000000).toFixed(2)}M
-            </h3>
-          </CardContent>
-        </Card>
-      </div>
+        <Separator className="my-5" />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="shadow-sm">
-          <CardContent className="p-6 flex justify-between items-center">
-            <span className="text-sm font-medium text-slate-500">WA DSCR</span>
-            <span className="text-lg font-semibold">{summary?.wa_dscr?.toFixed(2) || "0.00"}x</span>
-          </CardContent>
-        </Card>
-        <Card className="shadow-sm">
-          <CardContent className="p-6 flex justify-between items-center">
-            <span className="text-sm font-medium text-slate-500">WA LTV</span>
-            <span className="text-lg font-semibold">{((summary?.wa_ltv || 0) * 100).toFixed(1)}%</span>
-          </CardContent>
-        </Card>
-        <Card className="shadow-sm">
-          <CardContent className="p-6 flex justify-between items-center">
-            <span className="text-sm font-medium text-slate-500">Avg Cap per Loan</span>
-            <span className="text-lg font-semibold">
-              ${summary?.loan_count ? ((summary.total_estimated_capital_amount / summary.loan_count) / 1000).toFixed(1) : 0}k
-            </span>
-          </CardContent>
-        </Card>
-      </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card className="border-slate-200 shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                <ChartColumn className="h-4 w-4" />
+                Explorer scope
+              </div>
+              <p className="mt-2 text-sm text-slate-700">
+                Summary cards, fixed charts, one breakdown chart, and a drilldown table.
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="border-slate-200 shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                <Layers3 className="h-4 w-4" />
+                Default cohort
+              </div>
+              <p className="mt-2 text-sm text-slate-700">
+                Freddie Mac 2025Q3 is loaded first so the explorer opens with a single panel.
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="border-slate-200 shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                <ArrowRightLeft className="h-4 w-4" />
+                Compare mode
+              </div>
+              <p className="mt-2 text-sm text-slate-700">
+                The second panel stays hidden until you enable compare.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="shadow-sm bg-amber-50 border-amber-100">
-          <CardContent className="p-6">
-            <p className="text-sm font-medium text-amber-800">Avg Confidence</p>
-            <h3 className="text-2xl font-bold text-amber-900 mt-2">
-              {summary?.average_confidence_score?.toFixed(0) ?? "0"}%
-            </h3>
-          </CardContent>
-        </Card>
-        <Card className="shadow-sm">
-          <CardContent className="p-6 flex justify-between items-center">
-            <span className="text-sm font-medium text-slate-500">Results Available</span>
-            <span className="text-lg font-semibold">
-              {summary?.loans_with_available_results ?? 0}/{summary?.loan_count ?? 0}
-            </span>
-          </CardContent>
-        </Card>
-        <Card className="shadow-sm">
-          <CardContent className="p-6 flex justify-between items-center">
-            <span className="text-sm font-medium text-slate-500">Min Confidence</span>
-            <span className="text-lg font-semibold">
-              {summary?.minimum_confidence_score ?? 0}
-            </span>
-          </CardContent>
-        </Card>
-        <Card className="shadow-sm">
-          <CardContent className="p-6 flex justify-between items-center">
-            <span className="text-sm font-medium text-slate-500">Total Missing Inputs</span>
-            <span className="text-lg font-semibold">
-              {summary?.total_missing_input_count ?? 0}
-            </span>
-          </CardContent>
-        </Card>
-      </div>
+        {bannerError ? (
+          <Card className="mt-4 border-destructive/30 bg-destructive/5 shadow-sm">
+            <CardContent className="flex items-start gap-3 p-4 text-sm text-destructive">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{bannerError}</span>
+            </CardContent>
+          </Card>
+        ) : null}
 
-      <Separator />
+        {compareEnabled ? (
+          <div className="mt-5">
+            <CompareDeltaCards compare={compareData} loading={loading} />
+          </div>
+        ) : (
+          <div className="mt-5 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+            Compare mode is optional. Enable it to load a second cohort and surface the delta
+            cards above the panels.
+          </div>
+        )}
+      </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <Card className="shadow-sm border-slate-200">
-          <CardHeader>
-            <CardTitle>Capital Factor Distribution</CardTitle>
-            <CardDescription>Loan count by estimated capital factor bands</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={getDistributionData()} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="riskBand" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                  <Tooltip
-                    cursor={{fill: '#f1f5f9'}}
-                    contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)' }}
-                  />
-                  <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+      <div className={panelGridClassName}>
+        <CohortPanel
+          title="Primary Cohort"
+          description="The main explorer panel. Use it to inspect one curated dataset at a time."
+          request={primaryRequest}
+          onChange={setPrimaryRequest}
+          data={primaryPanelData}
+          loading={loading}
+          error={primaryError}
+          tone="primary"
+        />
 
-        <Card className="shadow-sm border-slate-200">
-          <CardHeader>
-            <CardTitle>DSCR vs LTV Risk Topography</CardTitle>
-            <CardDescription>Bubble size represents estimated capital factor</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <ScatterChart margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis type="number" dataKey="ltv" name="LTV" tickFormatter={(v) => `${(v*100).toFixed(0)}%`} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                  <YAxis type="number" dataKey="dscr" name="DSCR" tickFormatter={(v) => `${v}x`} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                  <ZAxis type="number" dataKey="cap" range={[50, 400]} name="Capital Factor" />
-                  <Tooltip
-                    cursor={{strokeDasharray: '3 3'}}
-                    contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)' }}
-                  />
-                  <Scatter name="Loans" data={getScatterData()} fill="#10b981" opacity={0.7} />
-                </ScatterChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+        {compareEnabled ? (
+          <CohortPanel
+            title="Comparison Cohort"
+            description="Use the same controls to keep the two panels directly comparable."
+            request={compareRequest}
+            onChange={setCompareRequest}
+            data={secondaryPanelData}
+            loading={loading}
+            error={compareError}
+            tone="secondary"
+          />
+        ) : null}
       </div>
     </div>
   );

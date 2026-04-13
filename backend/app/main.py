@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 import pandas as pd
@@ -7,7 +7,17 @@ import os
 import json
 import threading
 from pathlib import Path
-from .schema import LoanInput, EngineResult, LoanWithResult, PortfolioSummary
+from .datasets import CuratedStore, ExplorerService
+from .schema import (
+    CompareRequest,
+    CompareResponse,
+    CohortExplorerResponse,
+    CohortRequest,
+    EngineResult,
+    LoanInput,
+    LoanWithResult,
+    PortfolioSummary,
+)
 from .engine import ERCFEngine
 
 app = FastAPI(title="ERCF Capital Analytics API")
@@ -23,6 +33,10 @@ app.add_middleware(
 
 engine = ERCFEngine()
 portfolio_lock = threading.Lock()
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+CURATED_DATA_ROOT = PROJECT_ROOT / "tmp" / "datasets"
+curated_store = CuratedStore(CURATED_DATA_ROOT)
 
 DB_PATH = Path(__file__).parent.parent / "portfolio_data.json"
 
@@ -156,7 +170,58 @@ def read_root():
 
 @app.post("/api/calculate", response_model=EngineResult)
 def calculate_single_loan(loan: LoanInput):
+    # Keep the calculator contract stable so the refined-rule branch can slot in
+    # behind the same frontend request shape during the PoC.
     return engine.calculate_loan(loan)
+
+
+@app.post("/api/explorer/cohort", response_model=CohortExplorerResponse)
+def get_explorer_cohort(request: CohortRequest):
+    try:
+        return _build_cohort_response(request)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/explorer/compare", response_model=CompareResponse)
+def compare_explorer_cohorts(request: CompareRequest):
+    try:
+        left_response = _build_cohort_response(request.left)
+        right_response = _build_cohort_response(request.right)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return CompareResponse(
+        left=left_response,
+        right=right_response,
+        **build_compare_response(
+            left_response.summary.model_dump(),
+            right_response.summary.model_dump(),
+        ),
+    )
+
+
+def build_compare_response(
+    left: dict[str, float], right: dict[str, float]
+) -> dict[str, dict[str, float]]:
+    return {
+        "deltas": {
+            key: left[key] - right[key]
+            for key in left.keys()
+        }
+    }
+
+
+def _build_cohort_response(request: CohortRequest) -> CohortExplorerResponse:
+    rows = curated_store.load_rows(request.source, request.snapshot)
+    service = ExplorerService(rows)
+    return service.build_cohort(
+        source=request.source,
+        snapshot=request.snapshot,
+        filters=request.filters,
+        breakdown_dimension=request.breakdown_dimension,
+        breakdown_metric=request.breakdown_metric,
+    )
 
 
 @app.get("/api/portfolio", response_model=List[LoanInput])

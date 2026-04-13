@@ -105,3 +105,86 @@ export interface UploadResponse {
   failed_records: number;
   errors: Array<{ row: number; error: string }>;
 }
+
+export interface CohortRequest {
+  source: "freddie_mac" | "fannie_mae";
+  snapshot: string;
+  filters: Record<string, string[]>;
+  breakdown_dimension: "state" | "property_type";
+  breakdown_metric:
+    | "loan_count"
+    | "current_upb_total"
+    | "total_estimated_capital_amount";
+}
+
+export interface CohortSummary {
+  loan_count: number;
+  original_upb_total: number;
+  current_upb_total: number;
+  wa_dscr: number;
+  wa_ltv: number;
+  wa_estimated_capital_factor: number;
+  total_estimated_capital_amount: number;
+}
+
+export interface FixedChartPoint {
+  label: string;
+  value: number;
+}
+
+export interface FixedChartSeries {
+  points: FixedChartPoint[];
+}
+
+export interface BreakdownRow {
+  key: string;
+  value: number;
+}
+
+export interface BreakdownResponse {
+  dimension: string;
+  metric: string;
+  rows: BreakdownRow[];
+}
+
+export interface DrilldownRow {
+  loan_id: string;
+  source: string;
+  reporting_date?: string;
+  property_type?: string;
+  state?: string;
+  current_upb: number;
+  dscr: number;
+  ltv: number;
+  estimated_capital_factor: number;
+  estimated_capital_amount: number;
+}
+
+export interface CohortExplorerResponse {
+  cohort_label: string;
+  summary: CohortSummary;
+  fixed_charts: Record<string, FixedChartSeries>;
+  breakdown: BreakdownResponse;
+  drilldown_rows: DrilldownRow[];
+}
+
+export interface CompareRequest {
+  left: CohortRequest;
+  right: CohortRequest;
+}
+
+export interface CohortComparisonDeltas {
+  loan_count: number;
+  original_upb_total: number;
+  current_upb_total: number;
+  wa_dscr: number;
+  wa_ltv: number;
+  wa_estimated_capital_factor: number;
+  total_estimated_capital_amount: number;
+}
+
+export interface CompareResponse {
+  left: CohortExplorerResponse;
+  right: CohortExplorerResponse;
+  deltas: CohortComparisonDeltas;
+}

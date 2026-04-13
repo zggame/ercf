@@ -7,28 +7,28 @@ export function Sidebar() {
       <div className="p-6 border-b border-slate-200">
         <Link href="/" className="flex items-center gap-2 text-slate-900 font-semibold text-lg">
           <Building2 className="w-6 h-6 text-blue-600" />
-          <span>MF Capital Analytics</span>
+          <span>MF ERCF Explorer</span>
         </Link>
       </div>
       <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
         <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4 mt-2">Main</div>
         <Link href="/" className="flex items-center gap-3 px-3 py-2 text-slate-700 rounded-md hover:bg-slate-100 transition-colors">
           <Building2 className="w-5 h-5 text-slate-500" />
-          <span className="font-medium text-sm">Dashboard</span>
+          <span className="font-medium text-sm">Overview</span>
         </Link>
         <Link href="/calculator" className="flex items-center gap-3 px-3 py-2 text-slate-700 rounded-md hover:bg-slate-100 transition-colors">
           <Calculator className="w-5 h-5 text-slate-500" />
-          <span className="font-medium text-sm">Single Loan Engine</span>
+          <span className="font-medium text-sm">Single Loan Calculator</span>
         </Link>
 
-        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4 mt-8">Portfolio</div>
+        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4 mt-8">Explorer</div>
         <Link href="/dataset" className="flex items-center gap-3 px-3 py-2 text-slate-700 rounded-md hover:bg-slate-100 transition-colors">
           <Database className="w-5 h-5 text-slate-500" />
-          <span className="font-medium text-sm">Public Data Manager</span>
+          <span className="font-medium text-sm">Dataset Source</span>
         </Link>
         <Link href="/analytics" className="flex items-center gap-3 px-3 py-2 text-slate-700 rounded-md hover:bg-slate-100 transition-colors">
           <LineChart className="w-5 h-5 text-slate-500" />
-          <span className="font-medium text-sm">Portfolio Analytics</span>
+          <span className="font-medium text-sm">Dataset Explorer</span>
         </Link>
 
         <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4 mt-8">Documentation</div>

@@ -20,17 +20,9 @@ export default function CalculatorPage() {
     loan_id: "LOAN-1001",
     original_upb: 10000000,
     current_upb: 9500000,
-    original_loan_amount: 10000000,
     property_type: "Multifamily",
     dscr: 1.35,
     ltv: 0.65,
-    rate_type: "fixed",
-    interest_only: false,
-    original_term_months: 120,
-    amortization_term_months: 360,
-    payment_performance: "current",
-    government_subsidy_type: "",
-    qualifying_unit_share: 1,
     is_affordable: false,
     state: "NY"
   });
@@ -47,15 +39,8 @@ export default function CalculatorPage() {
         ...formData,
         original_upb: Number(formData.original_upb),
         current_upb: Number(formData.current_upb),
-        original_loan_amount: Number(formData.original_loan_amount),
         dscr: Number(formData.dscr),
-        ltv: Number(formData.ltv),
-        original_term_months: Number(formData.original_term_months),
-        amortization_term_months: Number(formData.amortization_term_months),
-        qualifying_unit_share: formData.government_subsidy_type
-          ? Number(formData.qualifying_unit_share)
-          : undefined,
-        government_subsidy_type: formData.government_subsidy_type || undefined,
+        ltv: Number(formData.ltv)
       };
       const res = await axios.post<EngineResult>(`${API_URL}/api/calculate`, payload);
       setResult(res.data);
@@ -68,7 +53,22 @@ export default function CalculatorPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+    <div className="max-w-6xl mx-auto space-y-6">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+          Single-Loan PoC
+        </p>
+        <h1 className="mt-2 text-2xl font-semibold text-slate-900">
+          ERCF-style calculator aligned to the dataset explorer
+        </h1>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+          Use the same core loan inputs that drive the portfolio explorer. This calculator keeps
+          the current API contract stable and returns the multiplier trace that is already visible
+          in the PoC.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
       {/* Left: Input Form */}
       <div className="lg:col-span-5 space-y-6">
         <Card className="shadow-sm border-slate-200">
@@ -77,7 +77,10 @@ export default function CalculatorPage() {
               <CalcIcon className="w-5 h-5 text-blue-600" />
               Loan Attributes
             </CardTitle>
-            <CardDescription>Input multifamily metrics to estimate capital</CardDescription>
+            <CardDescription>
+              Input multifamily metrics to estimate capital using the current ERCF-style PoC
+              methodology.
+            </CardDescription>
           </CardHeader>
           <CardContent className="p-6 space-y-4">
             <div className="space-y-2">
@@ -94,17 +97,6 @@ export default function CalculatorPage() {
                 <Label htmlFor="current_upb">Current UPB ($)</Label>
                 <Input id="current_upb" name="current_upb" type="number" value={formData.current_upb} onChange={handleChange} />
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="original_loan_amount">Original Loan Amount ($)</Label>
-              <Input
-                id="original_loan_amount"
-                name="original_loan_amount"
-                type="number"
-                value={formData.original_loan_amount}
-                onChange={handleChange}
-              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -134,92 +126,6 @@ export default function CalculatorPage() {
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="rate_type">Rate Type</Label>
-                <select
-                  id="rate_type"
-                  name="rate_type"
-                  value={formData.rate_type}
-                  onChange={handleChange}
-                  className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2"
-                >
-                  <option value="fixed">Fixed</option>
-                  <option value="arm">ARM</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="payment_performance">Payment Performance</Label>
-                <select
-                  id="payment_performance"
-                  name="payment_performance"
-                  value={formData.payment_performance}
-                  onChange={handleChange}
-                  className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2"
-                >
-                  <option value="current">Current</option>
-                  <option value="30dq">30 DQ</option>
-                  <option value="60dq">60+ DQ</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="original_term_months">Original Term (Months)</Label>
-                <Input
-                  id="original_term_months"
-                  name="original_term_months"
-                  type="number"
-                  value={formData.original_term_months}
-                  onChange={handleChange}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="amortization_term_months">Amortization (Months)</Label>
-                <Input
-                  id="amortization_term_months"
-                  name="amortization_term_months"
-                  type="number"
-                  value={formData.amortization_term_months}
-                  onChange={handleChange}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="government_subsidy_type">Government Subsidy Type</Label>
-              <select
-                id="government_subsidy_type"
-                name="government_subsidy_type"
-                value={formData.government_subsidy_type}
-                onChange={handleChange}
-                className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2"
-              >
-                <option value="">None</option>
-                <option value="lihtc">LIHTC</option>
-                <option value="section 8">Section 8 / PBRA</option>
-                <option value="section 515">Section 515</option>
-                <option value="state/local">State / Local</option>
-              </select>
-            </div>
-
-            {formData.government_subsidy_type && (
-              <div className="space-y-2">
-                <Label htmlFor="qualifying_unit_share">Qualifying Unit Share</Label>
-                <Input
-                  id="qualifying_unit_share"
-                  name="qualifying_unit_share"
-                  type="number"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value={formData.qualifying_unit_share}
-                  onChange={handleChange}
-                />
-              </div>
-            )}
-
             <div className="flex items-center gap-2 pt-2">
               <input
                 type="checkbox"
@@ -231,22 +137,10 @@ export default function CalculatorPage() {
               />
               <Label htmlFor="is_affordable" className="font-normal cursor-pointer">Affordable / Mission-Driven Flag</Label>
             </div>
-
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="interest_only"
-                name="interest_only"
-                checked={formData.interest_only}
-                onChange={handleChange}
-                className="rounded border-slate-300 text-blue-600 focus:ring-blue-600"
-              />
-              <Label htmlFor="interest_only" className="font-normal cursor-pointer">Interest Only</Label>
-            </div>
           </CardContent>
           <CardFooter className="bg-slate-50 border-t border-slate-100 p-4">
             <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={handleCalculate} disabled={loading}>
-              {loading ? "Calculating..." : "Run Capital Engine"}
+              {loading ? "Calculating..." : "Run ERCF-style Calculation"}
             </Button>
           </CardFooter>
         </Card>
@@ -259,7 +153,9 @@ export default function CalculatorPage() {
             <Card className="shadow-sm border-slate-200 bg-gradient-to-br from-white to-slate-50">
               <CardHeader>
                 <CardTitle className="text-xl">Calculation Results</CardTitle>
-                <CardDescription>Estimated ERCF proxy metrics for {result.loan_id}</CardDescription>
+                <CardDescription>
+                  Estimated ERCF-style proxy metrics for {result.loan_id}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-6 mb-8">
@@ -289,7 +185,7 @@ export default function CalculatorPage() {
 
                 <Separator className="my-6" />
 
-                <h4 className="font-semibold text-slate-800 mb-4">Risk Multiplier Trace</h4>
+                <h4 className="font-semibold text-slate-800 mb-4">Multiplier Trace</h4>
                 <div className="space-y-3">
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-slate-600">Base Risk Weight</span>
@@ -317,35 +213,13 @@ export default function CalculatorPage() {
                   <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
                   <div>
                     <h5 className="text-sm font-semibold text-amber-800">Data Quality Score: {result.data_quality_score}/100</h5>
-                    <p className="text-xs text-amber-700 mt-1">Some optional inputs (e.g., occupancy rate, valuation amount) are missing. This relies on engine defaults.</p>
+                    <p className="text-xs text-amber-700 mt-1">
+                      Some optional fields are still proxy-driven in the PoC. When they are
+                      missing, the calculator falls back to documented assumptions already used in
+                      the explorer.
+                    </p>
                   </div>
                 </div>
-
-                {!result.result_available && (
-                  <div className="mt-4 p-4 bg-red-50 rounded-lg border border-red-200 flex gap-3">
-                    <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-                    <div>
-                      <h5 className="text-sm font-semibold text-red-800">ERCF Rule Result Unavailable</h5>
-                      <p className="text-xs text-red-700 mt-1">
-                        Confidence score ({result.confidence_score}) is below the threshold ({result.confidence_threshold}). 
-                        Missing inputs: {result.missing_inputs.join(", ") || "none"}.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {result.result_available && result.final_risk_weight !== null && (
-                  <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <h5 className="text-sm font-semibold text-blue-800">Loan-Level ERCF Result</h5>
-                    <div className="mt-2 flex justify-between items-center">
-                      <span className="text-xs text-blue-700">Final Risk Weight</span>
-                      <span className="text-lg font-bold text-blue-900">{(result.final_risk_weight * 100).toFixed(2)}%</span>
-                    </div>
-                    {result.floor_applied && (
-                      <p className="text-xs text-blue-700 mt-1">Floor applied (minimum 20% risk weight)</p>
-                    )}
-                  </div>
-                )}
               </CardContent>
             </Card>
           </>
@@ -353,10 +227,14 @@ export default function CalculatorPage() {
           <div className="h-full min-h-[400px] flex items-center justify-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
             <div className="text-center text-slate-500 max-w-sm">
               <CalcIcon className="w-12 h-12 mx-auto text-slate-300 mb-4" />
-              <p>Fill out the loan attributes and run the capital engine to view the ERCF proxy results.</p>
+              <p>
+                Fill out the loan attributes and run the calculation to view the current
+                ERCF-style proxy trace.
+              </p>
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

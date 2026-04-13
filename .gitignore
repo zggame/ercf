@@ -31,3 +31,4 @@ Thumbs.db
 # Data files
 portfolio_data.json
 *.db
+tmp/datasets/

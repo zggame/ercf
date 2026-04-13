@@ -1,13 +1,25 @@
 import json
 import tempfile
 import unittest
+import sys
 from pathlib import Path
 from unittest.mock import patch
+
+
+import pandas as pd
+
 from app import main
 from app.engine import ERCFEngine
 from app.engine import load_config
 from app.schema import LoanInput
+from fastapi.testclient import TestClient
 import pandas as pd
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from ingest_gse import build_curated_rows
 
 class TestERCFEngine(unittest.TestCase):
     def setUp(self):
@@ -303,6 +315,64 @@ class TestERCFEngine(unittest.TestCase):
         self.assertTrue(hasattr(result, "final_risk_weight"))
         self.assertTrue(hasattr(result, "capital_amount"))
 
+    def test_calculator_api_response_keeps_refined_trace_fields(self):
+        client = TestClient(main.app)
+        response = client.post(
+            "/api/calculate",
+            json={
+                "loan_id": "TRACE-API-1",
+                "original_upb": 1000,
+                "current_upb": 1000,
+                "original_loan_amount": 1000,
+                "dscr": 1.25,
+                "ltv": 0.70,
+                "rate_type": "fixed",
+                "interest_only": False,
+                "original_term_months": 120,
+                "amortization_term_months": 360,
+                "payment_performance": "current",
+                "property_type": "Multifamily",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        trace_fields = [
+            "base_weight",
+            "ltv_multiplier",
+            "dscr_multiplier",
+            "property_multiplier",
+            "affordability_multiplier",
+            "base_risk_weight",
+            "payment_performance_multiplier",
+            "interest_only_multiplier",
+            "term_multiplier",
+            "amortization_multiplier",
+            "loan_size_multiplier",
+            "special_product_multiplier",
+            "subsidy_multiplier",
+            "combined_multiplier",
+            "floor_value",
+            "floor_applied",
+            "confidence_score",
+            "confidence_threshold",
+            "missing_input_count",
+            "missing_inputs",
+            "inferred_inputs",
+            "confidence_notes",
+            "result_available",
+            "final_risk_weight",
+            "capital_amount",
+        ]
+
+        for field in trace_fields:
+            with self.subTest(field=field):
+                self.assertIn(field, body)
+
+        self.assertTrue(body["result_available"])
+        self.assertIsInstance(body["confidence_notes"], list)
+        self.assertIsInstance(body["missing_inputs"], list)
+
     def test_confidence_scoring_applies_missing_input_penalties(self):
         # Task 4: confidence score and missing-input tracking are config-driven.
         self.engine.config = {
@@ -576,6 +646,697 @@ class TestERCFEngine(unittest.TestCase):
         self.assertEqual(uploaded.qualifying_unit_share, 0.5)
         self.assertEqual(uploaded.total_units, 100)
         self.assertEqual(uploaded.qualifying_units, 50)
+
+    def test_calculator_api_response_keeps_multiplier_trace_fields(self):
+        client = TestClient(main.app)
+        response = client.post(
+            "/api/calculate",
+            json={
+                "loan_id": "TRACE-API-1",
+                "original_upb": 1000,
+                "current_upb": 1000,
+                "dscr": 1.25,
+                "ltv": 0.70,
+                "property_type": "Multifamily",
+                "is_affordable": True,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+
+        for field in (
+            "estimated_capital_factor",
+            "estimated_capital_amount",
+            "base_weight",
+            "ltv_multiplier",
+            "dscr_multiplier",
+            "property_multiplier",
+            "affordability_multiplier",
+            "data_quality_score",
+        ):
+            with self.subTest(field=field):
+                self.assertIn(field, body)
+
+    def test_build_curated_rows_normalizes_freddie_latest_quarter(self):
+        frame = pd.DataFrame(
+            [
+                {
+                    "lnno": 100,
+                    "quarter": "y24q4",
+                    "amt_upb_pch": 120.0,
+                    "amt_upb_endg": 100.0,
+                    "rate_dcr": 1.25,
+                    "rate_ltv": 0.65,
+                    "code_st": "CA",
+                    "geographical_region": "LOS ANGELES, CA",
+                },
+                {
+                    "lnno": 101,
+                    "quarter": "y25q3",
+                    "amt_upb_pch": 150.0,
+                    "amt_upb_endg": 130.0,
+                    "rate_dcr": 1.30,
+                    "rate_ltv": 0.70,
+                    "code_st": "TX",
+                    "geographical_region": "DALLAS, TX",
+                },
+            ]
+        )
+
+        rows = build_curated_rows("freddie_mac", [frame], snapshot="2025Q3")
+
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row["source"], "freddie_mac")
+        self.assertEqual(row["snapshot"], "2025Q3")
+        self.assertEqual(row["loan_id"], "101")
+        self.assertEqual(row["state"], "TX")
+        self.assertAlmostEqual(row["current_upb"], 130.0)
+        self.assertAlmostEqual(row["original_upb"], 150.0)
+        self.assertAlmostEqual(row["dscr"], 1.30)
+        self.assertAlmostEqual(row["ltv"], 0.70)
+
+    def test_build_curated_rows_normalizes_fannie_latest_reporting_period(self):
+        frame = pd.DataFrame(
+            [
+                {
+                    "Loan Number": "FNM-1",
+                    "Reporting Period Date": "2025-06-30",
+                    "Original UPB": 200.0,
+                    "UPB - Current": 150.0,
+                    "Underwritten DSCR": 1.20,
+                    "Loan Acquisition LTV": 68.0,
+                    "Specific Property Type": "Multifamily",
+                    "Property State": "CA",
+                    "Metropolitan Statistical Area": "Los Angeles, CA",
+                    "Affordable Housing Type": "",
+                },
+                {
+                    "Loan Number": "FNM-2",
+                    "Reporting Period Date": "2025-09-30",
+                    "Original UPB": 300.0,
+                    "UPB - Current": 250.0,
+                    "Underwritten DSCR": 1.35,
+                    "Loan Acquisition LTV": 0.72,
+                    "Specific Property Type": "Seniors Housing",
+                    "Property State": "TX",
+                    "Metropolitan Statistical Area": "Dallas, TX",
+                    "Affordable Housing Type": "Affordable",
+                },
+            ]
+        )
+
+        rows = build_curated_rows("fannie_mae", [frame], snapshot="202509")
+
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row["source"], "fannie_mae")
+        self.assertEqual(row["snapshot"], "202509")
+        self.assertEqual(row["loan_id"], "FNM-2")
+        self.assertEqual(row["state"], "TX")
+        self.assertTrue(row["is_affordable"])
+        self.assertAlmostEqual(row["current_upb"], 250.0)
+        self.assertAlmostEqual(row["original_upb"], 300.0)
+        self.assertAlmostEqual(row["dscr"], 1.35)
+        self.assertAlmostEqual(row["ltv"], 0.72)
+
+
+class TestExplorerContracts(unittest.TestCase):
+    def test_portfolio_cohort_request_accepts_source_and_filters(self):
+        from app.schema import CohortRequest
+
+        request = CohortRequest(
+            source="freddie_mac",
+            snapshot="2025Q3",
+            filters={"state": ["CA"], "property_type": ["Multifamily"]},
+            breakdown_dimension="state",
+            breakdown_metric="current_upb_total",
+        )
+
+        self.assertEqual(request.source, "freddie_mac")
+        self.assertEqual(request.snapshot, "2025Q3")
+        self.assertEqual(request.filters["state"], ["CA"])
+
+    def test_portfolio_cohort_request_uses_default_breakdown_contract(self):
+        from app.schema import CohortRequest
+
+        request = CohortRequest(source="freddie_mac", snapshot="2025Q3")
+
+        self.assertEqual(request.breakdown_dimension, "state")
+        self.assertEqual(request.breakdown_metric, "current_upb_total")
+
+    def test_explorer_response_accepts_nested_structured_models(self):
+        from app.schema import CohortExplorerResponse
+
+        response = CohortExplorerResponse(
+            cohort_label="Freddie Mac 2025Q3",
+            summary={
+                "loan_count": 2,
+                "original_upb_total": 300.0,
+                "current_upb_total": 250.0,
+                "wa_dscr": 1.2,
+                "wa_ltv": 0.65,
+                "wa_estimated_capital_factor": 0.5,
+                "total_estimated_capital_amount": 125.0,
+            },
+            fixed_charts={
+                "capital_factor_bands": {
+                    "points": [
+                        {"label": "0.0-0.5", "value": 10.0},
+                        {"label": "0.5-1.0", "value": 5.0},
+                    ]
+                }
+            },
+            breakdown={
+                "dimension": "state",
+                "metric": "current_upb_total",
+                "rows": [
+                    {"key": "CA", "value": 150.0},
+                    {"key": "TX", "value": 100.0},
+                ],
+            },
+            drilldown_rows=[],
+        )
+
+        self.assertEqual(response.cohort_label, "Freddie Mac 2025Q3")
+        self.assertEqual(response.fixed_charts["capital_factor_bands"].points[0].label, "0.0-0.5")
+        self.assertEqual(response.breakdown.dimension, "state")
+        self.assertEqual(response.breakdown.rows[1].key, "TX")
+
+
+class TestCuratedExplorer(unittest.TestCase):
+    def test_curated_store_loads_rows_from_snapshot_json(self):
+        from app.datasets.curated_store import CuratedStore
+
+        rows = [
+            {
+                "loan_id": "FNM-1",
+                "source": "fannie_mae",
+                "snapshot": "2025Q3",
+                "state": "NY",
+                "property_type": "Multifamily",
+                "current_upb": 123.0,
+                "original_upb": 150.0,
+                "dscr": 1.25,
+                "ltv": 0.62,
+                "estimated_capital_factor": 0.55,
+                "estimated_capital_amount": 67.65,
+            }
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source_dir = root / "fannie_mae"
+            source_dir.mkdir(parents=True, exist_ok=True)
+            snapshot_path = source_dir / "2025Q3.json"
+            snapshot_path.write_text(json.dumps(rows), encoding="utf-8")
+
+            loaded_rows = CuratedStore(root).load_rows("fannie_mae", "2025Q3")
+
+        self.assertEqual(loaded_rows, rows)
+
+    def test_curated_store_rejects_unsafe_source_and_snapshot_names(self):
+        from app.datasets.curated_store import CuratedStore
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store = CuratedStore(root)
+
+            with self.assertRaisesRegex(ValueError, "Unsupported curated source"):
+                store.load_rows("../fannie_mae", "2025Q3")
+
+            with self.assertRaisesRegex(ValueError, "Invalid snapshot name"):
+                store.load_rows("fannie_mae", "../escape")
+
+    def test_empty_filter_list_does_not_remove_rows(self):
+        from app.datasets.explorer import ExplorerService
+
+        rows = [
+            {
+                "loan_id": "FRE-1",
+                "source": "freddie_mac",
+                "snapshot": "2025Q3",
+                "state": "CA",
+                "property_type": "Multifamily",
+                "current_upb": 100.0,
+                "original_upb": 120.0,
+                "dscr": 1.30,
+                "ltv": 0.60,
+                "estimated_capital_factor": 0.50,
+                "estimated_capital_amount": 50.0,
+            },
+            {
+                "loan_id": "FRE-2",
+                "source": "freddie_mac",
+                "snapshot": "2025Q3",
+                "state": "TX",
+                "property_type": "Seniors Housing",
+                "current_upb": 200.0,
+                "original_upb": 220.0,
+                "dscr": 1.10,
+                "ltv": 0.75,
+                "estimated_capital_factor": 0.75,
+                "estimated_capital_amount": 150.0,
+            },
+        ]
+
+        response = ExplorerService(rows).build_cohort(
+            source="freddie_mac",
+            snapshot="2025Q3",
+            filters={"state": []},
+            breakdown_dimension="state",
+            breakdown_metric="current_upb_total",
+        )
+
+        self.assertEqual(response.summary.loan_count, 2)
+        self.assertEqual(response.summary.current_upb_total, 300.0)
+        self.assertEqual(
+            [point.label for point in response.fixed_charts["state_mix"].points],
+            ["CA", "TX"],
+        )
+
+    def test_unsupported_filter_key_is_rejected(self):
+        from app.datasets.explorer import ExplorerService
+
+        rows = [
+            {
+                "loan_id": "FRE-1",
+                "source": "freddie_mac",
+                "snapshot": "2025Q3",
+                "state": "CA",
+                "property_type": "Multifamily",
+                "current_upb": 100.0,
+                "original_upb": 120.0,
+                "dscr": 1.30,
+                "ltv": 0.60,
+                "estimated_capital_factor": 0.50,
+                "estimated_capital_amount": 50.0,
+            }
+        ]
+
+        service = ExplorerService(rows)
+
+        with self.assertRaisesRegex(ValueError, "Unsupported cohort filter field"):
+            service.build_cohort(
+                source="freddie_mac",
+                snapshot="2025Q3",
+                filters={"unsupported_field": ["x"]},
+                breakdown_dimension="state",
+                breakdown_metric="current_upb_total",
+            )
+
+    def test_invalid_breakdown_dimension_is_rejected(self):
+        from app.datasets.explorer import ExplorerService
+
+        rows = [
+            {
+                "loan_id": "FRE-1",
+                "source": "freddie_mac",
+                "snapshot": "2025Q3",
+                "state": "CA",
+                "property_type": "Multifamily",
+                "current_upb": 100.0,
+                "original_upb": 120.0,
+                "dscr": 1.30,
+                "ltv": 0.60,
+                "estimated_capital_factor": 0.50,
+                "estimated_capital_amount": 50.0,
+            }
+        ]
+
+        service = ExplorerService(rows)
+
+        with self.assertRaisesRegex(ValueError, "Unsupported breakdown dimension"):
+            service.build_cohort(
+                source="freddie_mac",
+                snapshot="2025Q3",
+                filters={},
+                breakdown_dimension="msa",
+                breakdown_metric="current_upb_total",
+            )
+
+    def test_explorer_service_filters_and_summarizes_a_curated_source(self):
+        from app.datasets.explorer import ExplorerService
+
+        rows = [
+            {
+                "loan_id": "FRE-1",
+                "source": "freddie_mac",
+                "snapshot": "2025Q3",
+                "state": "CA",
+                "property_type": "Multifamily",
+                "current_upb": 100.0,
+                "original_upb": 120.0,
+                "dscr": 1.30,
+                "ltv": 0.60,
+                "estimated_capital_factor": 0.50,
+                "estimated_capital_amount": 50.0,
+            },
+            {
+                "loan_id": "FRE-2",
+                "source": "freddie_mac",
+                "snapshot": "2025Q3",
+                "state": "TX",
+                "property_type": "Seniors Housing",
+                "current_upb": 200.0,
+                "original_upb": 220.0,
+                "dscr": 1.10,
+                "ltv": 0.75,
+                "estimated_capital_factor": 0.75,
+                "estimated_capital_amount": 150.0,
+            },
+        ]
+
+        service = ExplorerService(rows)
+        response = service.build_cohort(
+            source="freddie_mac",
+            snapshot="2025Q3",
+            filters={"state": ["CA"]},
+            breakdown_dimension="state",
+            breakdown_metric="current_upb_total",
+        )
+
+        self.assertEqual(response.summary.loan_count, 1)
+        self.assertEqual(response.summary.current_upb_total, 100.0)
+        self.assertEqual(response.summary.original_upb_total, 120.0)
+        self.assertEqual(response.summary.wa_dscr, 1.30)
+        self.assertEqual(response.summary.wa_ltv, 0.60)
+        self.assertEqual(response.summary.wa_estimated_capital_factor, 0.50)
+        self.assertEqual(response.summary.total_estimated_capital_amount, 50.0)
+        self.assertEqual(response.breakdown.dimension, "state")
+        self.assertEqual(response.breakdown.metric, "current_upb_total")
+        self.assertEqual(response.breakdown.rows[0].key, "CA")
+        self.assertEqual(response.breakdown.rows[0].value, 100.0)
+        self.assertEqual(response.drilldown_rows[0].loan_id, "FRE-1")
+        self.assertIn("capital_factor_bands", response.fixed_charts)
+
+
+class TestExplorerEndpoints(unittest.TestCase):
+    def test_compare_endpoint_returns_two_cohorts_and_delta_cards(self):
+        from app.main import build_compare_response
+
+        left = {
+            "loan_count": 2,
+            "original_upb_total": 300.0,
+            "current_upb_total": 250.0,
+            "wa_dscr": 1.20,
+            "wa_ltv": 0.65,
+            "wa_estimated_capital_factor": 0.55,
+            "total_estimated_capital_amount": 140.0,
+        }
+        right = {
+            "loan_count": 2,
+            "original_upb_total": 310.0,
+            "current_upb_total": 260.0,
+            "wa_dscr": 1.10,
+            "wa_ltv": 0.70,
+            "wa_estimated_capital_factor": 0.60,
+            "total_estimated_capital_amount": 156.0,
+        }
+
+        response = build_compare_response(left, right)
+
+        self.assertAlmostEqual(response["deltas"]["wa_dscr"], 0.10)
+        self.assertAlmostEqual(
+            response["deltas"]["total_estimated_capital_amount"], -16.0
+        )
+
+    def test_explorer_compare_endpoint_uses_curated_store_and_service(self):
+        from app.schema import CohortRequest, CompareRequest
+
+        request = CompareRequest(
+            left=CohortRequest(
+                source="freddie_mac",
+                snapshot="2025Q3",
+                filters={"state": ["CA"]},
+                breakdown_dimension="state",
+                breakdown_metric="current_upb_total",
+            ),
+            right=CohortRequest(
+                source="freddie_mac",
+                snapshot="2025Q4",
+                filters={"state": ["TX"]},
+                breakdown_dimension="state",
+                breakdown_metric="current_upb_total",
+            ),
+        )
+        left_rows = [
+            {
+                "loan_id": "FRE-L1",
+                "source": "freddie_mac",
+                "snapshot": "2025Q3",
+                "state": "CA",
+                "property_type": "Multifamily",
+                "current_upb": 100.0,
+                "original_upb": 120.0,
+                "dscr": 1.30,
+                "ltv": 0.60,
+                "estimated_capital_factor": 0.50,
+                "estimated_capital_amount": 50.0,
+            }
+        ]
+        right_rows = [
+            {
+                "loan_id": "FRE-R1",
+                "source": "freddie_mac",
+                "snapshot": "2025Q4",
+                "state": "TX",
+                "property_type": "Multifamily",
+                "current_upb": 160.0,
+                "original_upb": 180.0,
+                "dscr": 1.10,
+                "ltv": 0.75,
+                "estimated_capital_factor": 0.75,
+                "estimated_capital_amount": 120.0,
+            }
+        ]
+
+        with patch.object(
+            main.curated_store,
+            "load_rows",
+            side_effect=[left_rows, right_rows],
+        ) as load_rows:
+            response = main.compare_explorer_cohorts(request)
+
+        self.assertEqual(load_rows.call_count, 2)
+        self.assertEqual(response.left.cohort_label, "freddie_mac 2025Q3")
+        self.assertEqual(response.right.cohort_label, "freddie_mac 2025Q4")
+        self.assertEqual(response.left.summary.loan_count, 1)
+        self.assertEqual(response.right.summary.loan_count, 1)
+        self.assertAlmostEqual(response.deltas.current_upb_total, -60.0)
+        self.assertAlmostEqual(response.deltas.wa_dscr, 0.20)
+
+    def test_explorer_cohort_endpoint_uses_curated_store_and_service(self):
+        from app.schema import CohortRequest
+
+        request = CohortRequest(
+            source="freddie_mac",
+            snapshot="2025Q3",
+            filters={"state": ["CA"]},
+            breakdown_dimension="state",
+            breakdown_metric="current_upb_total",
+        )
+        rows = [
+            {
+                "loan_id": "FRE-1",
+                "source": "freddie_mac",
+                "snapshot": "2025Q3",
+                "state": "CA",
+                "property_type": "Multifamily",
+                "current_upb": 100.0,
+                "original_upb": 120.0,
+                "dscr": 1.30,
+                "ltv": 0.60,
+                "estimated_capital_factor": 0.50,
+                "estimated_capital_amount": 50.0,
+            }
+        ]
+
+        with patch.object(main.curated_store, "load_rows", return_value=rows) as load_rows:
+            response = main.get_explorer_cohort(request)
+
+        load_rows.assert_called_once_with("freddie_mac", "2025Q3")
+        self.assertEqual(response.cohort_label, "freddie_mac 2025Q3")
+        self.assertEqual(response.summary.loan_count, 1)
+        self.assertEqual(response.breakdown.rows[0].key, "CA")
+
+
+class TestExplorerHttpEndpoints(unittest.TestCase):
+    def test_post_explorer_cohort_returns_serialized_response(self):
+        rows = [
+            {
+                "loan_id": "FRE-1",
+                "source": "freddie_mac",
+                "snapshot": "2025Q3",
+                "state": "CA",
+                "property_type": "Multifamily",
+                "current_upb": 100.0,
+                "original_upb": 120.0,
+                "dscr": 1.30,
+                "ltv": 0.60,
+                "estimated_capital_factor": 0.50,
+                "estimated_capital_amount": 50.0,
+            }
+        ]
+
+        with TestClient(main.app, raise_server_exceptions=False) as client:
+            with patch.object(main.curated_store, "load_rows", return_value=rows):
+                response = client.post(
+                    "/api/explorer/cohort",
+                    json={
+                        "source": "freddie_mac",
+                        "snapshot": "2025Q3",
+                        "filters": {"state": ["CA"]},
+                        "breakdown_dimension": "state",
+                        "breakdown_metric": "current_upb_total",
+                    },
+                )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["cohort_label"], "freddie_mac 2025Q3")
+        self.assertEqual(payload["summary"]["loan_count"], 1)
+        self.assertEqual(payload["breakdown"]["rows"][0]["key"], "CA")
+
+    def test_post_explorer_compare_returns_serialized_response(self):
+        left_rows = [
+            {
+                "loan_id": "FRE-L1",
+                "source": "freddie_mac",
+                "snapshot": "2025Q3",
+                "state": "CA",
+                "property_type": "Multifamily",
+                "current_upb": 100.0,
+                "original_upb": 120.0,
+                "dscr": 1.30,
+                "ltv": 0.60,
+                "estimated_capital_factor": 0.50,
+                "estimated_capital_amount": 50.0,
+            }
+        ]
+        right_rows = [
+            {
+                "loan_id": "FRE-R1",
+                "source": "freddie_mac",
+                "snapshot": "2025Q4",
+                "state": "TX",
+                "property_type": "Multifamily",
+                "current_upb": 160.0,
+                "original_upb": 180.0,
+                "dscr": 1.10,
+                "ltv": 0.75,
+                "estimated_capital_factor": 0.75,
+                "estimated_capital_amount": 120.0,
+            }
+        ]
+
+        with TestClient(main.app, raise_server_exceptions=False) as client:
+            with patch.object(
+                main.curated_store,
+                "load_rows",
+                side_effect=[left_rows, right_rows],
+            ):
+                response = client.post(
+                    "/api/explorer/compare",
+                    json={
+                        "left": {
+                            "source": "freddie_mac",
+                            "snapshot": "2025Q3",
+                            "filters": {"state": ["CA"]},
+                            "breakdown_dimension": "state",
+                            "breakdown_metric": "current_upb_total",
+                        },
+                        "right": {
+                            "source": "freddie_mac",
+                            "snapshot": "2025Q4",
+                            "filters": {"state": ["TX"]},
+                            "breakdown_dimension": "state",
+                            "breakdown_metric": "current_upb_total",
+                        },
+                    },
+                )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["left"]["cohort_label"], "freddie_mac 2025Q3")
+        self.assertEqual(payload["right"]["cohort_label"], "freddie_mac 2025Q4")
+        self.assertAlmostEqual(payload["deltas"]["current_upb_total"], -60.0)
+
+    def test_invalid_explorer_filter_returns_4xx_response(self):
+        rows = [
+            {
+                "loan_id": "FRE-1",
+                "source": "freddie_mac",
+                "snapshot": "2025Q3",
+                "state": "CA",
+                "property_type": "Multifamily",
+                "current_upb": 100.0,
+                "original_upb": 120.0,
+                "dscr": 1.30,
+                "ltv": 0.60,
+                "estimated_capital_factor": 0.50,
+                "estimated_capital_amount": 50.0,
+            }
+        ]
+
+        with TestClient(main.app, raise_server_exceptions=False) as client:
+            with patch.object(main.curated_store, "load_rows", return_value=rows):
+                response = client.post(
+                    "/api/explorer/cohort",
+                    json={
+                        "source": "freddie_mac",
+                        "snapshot": "2025Q3",
+                        "filters": {"unsupported_field": ["CA"]},
+                        "breakdown_dimension": "state",
+                        "breakdown_metric": "current_upb_total",
+                    },
+                )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Unsupported cohort filter field", response.json()["detail"])
+
+    def test_invalid_explorer_dimension_returns_4xx_response(self):
+        rows = [
+            {
+                "loan_id": "FRE-1",
+                "source": "freddie_mac",
+                "snapshot": "2025Q3",
+                "state": "CA",
+                "property_type": "Multifamily",
+                "current_upb": 100.0,
+                "original_upb": 120.0,
+                "dscr": 1.30,
+                "ltv": 0.60,
+                "estimated_capital_factor": 0.50,
+                "estimated_capital_amount": 50.0,
+            }
+        ]
+
+        with TestClient(main.app, raise_server_exceptions=False) as client:
+            with patch.object(main.curated_store, "load_rows", return_value=rows):
+                response = client.post(
+                    "/api/explorer/compare",
+                    json={
+                        "left": {
+                            "source": "freddie_mac",
+                            "snapshot": "2025Q3",
+                            "filters": {"state": ["CA"]},
+                            "breakdown_dimension": "state",
+                            "breakdown_metric": "current_upb_total",
+                        },
+                        "right": {
+                            "source": "freddie_mac",
+                            "snapshot": "2025Q3",
+                            "filters": {"state": ["CA"]},
+                            "breakdown_dimension": "msa",
+                            "breakdown_metric": "current_upb_total",
+                        },
+                    },
+                )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Unsupported breakdown dimension", response.json()["detail"])
 
 if __name__ == '__main__':
     unittest.main()
