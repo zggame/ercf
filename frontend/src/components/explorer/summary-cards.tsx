@@ -24,12 +24,12 @@ const METRICS: MetricCard[] = [
   {
     key: "original_upb_total",
     label: "Original UPB",
-    format: formatMillions,
+    format: formatDollars,
   },
   {
     key: "current_upb_total",
     label: "Current UPB",
-    format: formatMillions,
+    format: formatDollars,
   },
   {
     key: "wa_dscr",
@@ -52,13 +52,13 @@ const METRICS: MetricCard[] = [
   {
     key: "total_estimated_capital_amount",
     label: "Est. Total Capital",
-    format: formatMillions,
+    format: formatDollars,
     accent: "text-emerald-700",
   },
 ];
 
-function formatMillions(value: number) {
-  return `$${(value / 1_000_000).toFixed(1)}M`;
+function formatDollars(value: number) {
+  return `$${Math.round(value).toLocaleString()}`;
 }
 
 function SkeletonCard({ label }: { label: string }) {

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Search } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Search } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { DrilldownRow } from "@/types/api";
 
@@ -14,6 +15,8 @@ type DrilldownTableProps = {
 
 type SortKey = "loan_id" | "state" | "current_upb" | "estimated_capital_factor" | "estimated_capital_amount";
 type SortDirection = "asc" | "desc";
+
+const PAGE_SIZE = 25;
 
 const SORT_LABELS: Record<SortKey, string> = {
   loan_id: "Loan ID",
@@ -57,17 +60,27 @@ function sortRows(rows: DrilldownRow[], sortKey: SortKey, sortDirection: SortDir
   });
 }
 
-function formatMillions(value: number) {
-  return `$${(value / 1_000_000).toFixed(1)}M`;
+function formatDollars(value: number) {
+  return `$${Math.round(value).toLocaleString()}`;
 }
 
 export function DrilldownTable({ rows, loading = false }: DrilldownTableProps) {
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("current_upb");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [page, setPage] = useState(0);
 
   const filteredRows = (rows ?? []).filter((row) => matchesQuery(row, query.trim().toLowerCase()));
-  const visibleRows = sortRows(filteredRows, sortKey, sortDirection);
+  const sortedRows = sortRows(filteredRows, sortKey, sortDirection);
+
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages - 1);
+  const visibleRows = sortedRows.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+
+  const handleQueryChange = (value: string) => {
+    setQuery(value);
+    setPage(0);
+  };
 
   return (
     <Card className="shadow-sm">
@@ -85,7 +98,7 @@ export function DrilldownTable({ rows, loading = false }: DrilldownTableProps) {
               className="pl-9"
               placeholder="Search loan id, state, property type, or source"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => handleQueryChange(event.target.value)}
               disabled={loading}
             />
           </div>
@@ -151,17 +164,49 @@ export function DrilldownTable({ rows, loading = false }: DrilldownTableProps) {
                     <TableCell>{row.reporting_date ?? "—"}</TableCell>
                     <TableCell>{row.property_type ?? "—"}</TableCell>
                     <TableCell>{row.state ?? "—"}</TableCell>
-                    <TableCell className="text-right">{formatMillions(row.current_upb)}</TableCell>
+                    <TableCell className="text-right">{formatDollars(row.current_upb)}</TableCell>
                     <TableCell className="text-right">{row.dscr.toFixed(2)}x</TableCell>
                     <TableCell className="text-right">{(row.ltv * 100).toFixed(1)}%</TableCell>
                     <TableCell className="text-right">{(row.estimated_capital_factor * 100).toFixed(1)}%</TableCell>
-                    <TableCell className="text-right">{formatMillions(row.estimated_capital_amount)}</TableCell>
+                    <TableCell className="text-right">{formatDollars(row.estimated_capital_amount)}</TableCell>
                   </TableRow>
                 ))
               )}
             </TableBody>
           </Table>
         </div>
+
+        {sortedRows.length > 0 && (
+          <div className="flex items-center justify-between pt-1">
+            <p className="text-xs text-muted-foreground">
+              Showing {safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, sortedRows.length)} of{" "}
+              {sortedRows.length.toLocaleString()} loans
+            </p>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 w-7 p-0"
+                disabled={safePage === 0}
+                onClick={() => setPage(safePage - 1)}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="px-2 text-xs font-medium text-muted-foreground">
+                {safePage + 1} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 w-7 p-0"
+                disabled={safePage >= totalPages - 1}
+                onClick={() => setPage(safePage + 1)}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

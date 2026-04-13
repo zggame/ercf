@@ -37,7 +37,7 @@ function formatIntegerDelta(value: number) {
 }
 
 function formatMoneyDelta(value: number) {
-  return `${value >= 0 ? "+" : "-"}$${(Math.abs(value) / 1_000_000).toFixed(1)}M`;
+  return `${value >= 0 ? "+" : "-"}$${Math.round(Math.abs(value)).toLocaleString()}`;
 }
 
 function formatRatioDelta(value: number) {
