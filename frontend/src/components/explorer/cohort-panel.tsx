@@ -139,7 +139,7 @@ function MultiSelect({ options, selected, onChange, placeholder, disabled = fals
 
       {open && (
         <div
-          className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-input bg-background p-1 shadow-md"
+          className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg"
           onMouseDown={(e) => e.preventDefault()}
         >
           {options.map((option) => {
