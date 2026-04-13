@@ -219,7 +219,7 @@ export function CohortPanel({
         </div>
       </div>
 
-      <Card className={`shadow-sm ${tone === "primary" ? "border-blue-100" : "border-emerald-100"}`}>
+      <Card className={`overflow-visible shadow-sm ${tone === "primary" ? "border-blue-100" : "border-emerald-100"}`}>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Cohort controls</CardTitle>
           <CardDescription>
