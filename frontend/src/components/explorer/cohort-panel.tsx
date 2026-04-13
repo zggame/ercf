@@ -1,8 +1,8 @@
 "use client";
 
-import { AlertCircle, Filter, Layers3, MapPinned, Table2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { AlertCircle, Check, ChevronDown, Filter, Layers3, MapPinned, Table2, X } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -31,9 +31,9 @@ const SOURCE_LABELS: Record<CohortRequest["source"], string> = {
   fannie_mae: "Fannie Mae",
 };
 
-const SNAPSHOT_PLACEHOLDERS: Record<CohortRequest["source"], string> = {
-  freddie_mac: "2025Q3",
-  fannie_mae: "202509",
+const SNAPSHOT_OPTIONS: Record<CohortRequest["source"], Array<{ value: string; label: string }>> = {
+  freddie_mac: [{ value: "2025Q3", label: "2025Q3" }],
+  fannie_mae: [{ value: "202509", label: "202509" }],
 };
 
 const BREAKDOWN_DIMENSION_OPTIONS: Array<{ value: CohortRequest["breakdown_dimension"]; label: string }> = [
@@ -47,38 +47,128 @@ const BREAKDOWN_METRIC_OPTIONS: Array<{ value: CohortRequest["breakdown_metric"]
   { value: "total_estimated_capital_amount", label: "Est. capital amount" },
 ];
 
-function parseListInput(value: string) {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
+const US_STATES = [
+  "AL","AK","AZ","AR","CA","CO","CT","DC","DE","FL","GA","HI","ID","IL","IN",
+  "IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH",
+  "NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT",
+  "VT","VA","WA","WV","WI","WY",
+];
 
-function formatListInput(values: string[] | undefined) {
-  return values?.join(", ") ?? "";
-}
+const PROPERTY_TYPES = [
+  "Multifamily",
+  "Seniors Housing",
+  "Student Housing",
+  "Manufactured Housing",
+];
 
 function cohortLabel(request: CohortRequest) {
   return `${SOURCE_LABELS[request.source]} ${request.snapshot}`;
 }
 
-function updateFilters(
-  request: CohortRequest,
-  key: "state" | "property_type",
-  value: string
-) {
-  return {
-    ...request,
-    filters: {
-      ...request.filters,
-      [key]: parseListInput(value),
-    },
-  };
-}
-
 function SectionIcon({ icon: Icon }: { icon: typeof Layers3 }) {
   return <Icon className="h-4 w-4 text-muted-foreground" />;
 }
+
+/* ─── Multi-select dropdown ──────────────────────────────────────────────── */
+
+type MultiSelectProps = {
+  options: string[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  placeholder: string;
+  disabled?: boolean;
+};
+
+function MultiSelect({ options, selected, onChange, placeholder, disabled = false }: MultiSelectProps) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const toggle = (value: string) => {
+    if (selected.includes(value)) {
+      onChange(selected.filter((v) => v !== value));
+    } else {
+      onChange([...selected, value]);
+    }
+  };
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        type="button"
+        className="flex h-8 w-full items-center justify-between rounded-lg border border-input bg-background px-3 text-sm shadow-sm outline-none disabled:cursor-not-allowed disabled:opacity-50"
+        onClick={() => setOpen((o) => !o)}
+        onBlur={(e) => {
+          if (!containerRef.current?.contains(e.relatedTarget as Node)) setOpen(false);
+        }}
+        disabled={disabled}
+      >
+        <span className="truncate text-left">
+          {selected.length === 0 ? (
+            <span className="text-muted-foreground">{placeholder}</span>
+          ) : (
+            <span className="flex items-center gap-1 overflow-hidden">
+              {selected.slice(0, 3).map((v) => (
+                <span key={v} className="inline-flex items-center gap-0.5 rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-700">
+                  {v}
+                </span>
+              ))}
+              {selected.length > 3 && (
+                <span className="text-xs text-muted-foreground">+{selected.length - 3}</span>
+              )}
+            </span>
+          )}
+        </span>
+        <span className="flex items-center gap-1 shrink-0">
+          {selected.length > 0 && (
+            <span
+              role="button"
+              tabIndex={0}
+              className="rounded-full p-0.5 hover:bg-muted"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onChange([]);
+              }}
+            >
+              <X className="h-3 w-3 text-muted-foreground" />
+            </span>
+          )}
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        </span>
+      </button>
+
+      {open && (
+        <div
+          className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-input bg-background p-1 shadow-md"
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          {options.map((option) => {
+            const isSelected = selected.includes(option);
+            return (
+              <button
+                key={option}
+                type="button"
+                className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
+                  isSelected ? "bg-slate-100 font-medium" : "hover:bg-muted"
+                }`}
+                onClick={() => toggle(option)}
+              >
+                <span className={`flex h-4 w-4 items-center justify-center rounded border ${
+                  isSelected ? "border-blue-600 bg-blue-600 text-white" : "border-input"
+                }`}>
+                  {isSelected && <Check className="h-3 w-3" />}
+                </span>
+                {option}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Cohort panel ───────────────────────────────────────────────────────── */
 
 export function CohortPanel({
   title,
@@ -90,6 +180,7 @@ export function CohortPanel({
   error = null,
   tone = "primary",
 }: CohortPanelProps) {
+  const snapshotOptions = SNAPSHOT_OPTIONS[request.source];
   const headerClassName =
     tone === "primary" ? "border-blue-100 bg-blue-50/60" : "border-emerald-100 bg-emerald-50/60";
 
@@ -98,9 +189,11 @@ export function CohortPanel({
   };
 
   const updateSource = (source: CohortRequest["source"]) => {
+    const nextSnapshot = SNAPSHOT_OPTIONS[source][0]?.value ?? request.snapshot;
     onChange({
       ...request,
       source,
+      snapshot: nextSnapshot,
     });
   };
 
@@ -156,39 +249,45 @@ export function CohortPanel({
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <SectionIcon icon={Layers3} />
-                Snapshot key
+                Snapshot
               </Label>
-              <Input
-                placeholder={SNAPSHOT_PLACEHOLDERS[request.source]}
+              <select
+                className="h-8 w-full rounded-lg border border-input bg-background px-3 text-sm shadow-sm outline-none"
                 value={request.snapshot}
                 onChange={(event) => updateRequest({ snapshot: event.target.value })}
                 disabled={loading}
-              />
-              <p className="text-xs text-muted-foreground">
-                Freeform snapshot key. Example values are shown as placeholders, but any backend
-                snapshot key can be entered.
-              </p>
+              >
+                {snapshotOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
           <div className="grid gap-3 md:grid-cols-3">
             <div className="space-y-2">
               <Label>State filter</Label>
-              <Input
-                placeholder="CA, TX"
-                value={formatListInput(request.filters.state)}
-                onChange={(event) => onChange(updateFilters(request, "state", event.target.value))}
+              <MultiSelect
+                options={US_STATES}
+                selected={(request.filters.state as string[]) ?? []}
+                onChange={(next) =>
+                  onChange({ ...request, filters: { ...request.filters, state: next } })
+                }
+                placeholder="All states"
                 disabled={loading}
               />
             </div>
             <div className="space-y-2">
               <Label>Property type filter</Label>
-              <Input
-                placeholder="Multifamily, Seniors Housing"
-                value={formatListInput(request.filters.property_type)}
-                onChange={(event) =>
-                  onChange(updateFilters(request, "property_type", event.target.value))
+              <MultiSelect
+                options={PROPERTY_TYPES}
+                selected={(request.filters.property_type as string[]) ?? []}
+                onChange={(next) =>
+                  onChange({ ...request, filters: { ...request.filters, property_type: next } })
                 }
+                placeholder="All types"
                 disabled={loading}
               />
             </div>
@@ -237,8 +336,8 @@ export function CohortPanel({
               </select>
             </div>
             <div className="flex items-end text-xs text-muted-foreground">
-              Comma-separated filters keep the controls simple while still matching the backend
-              cohort contract.
+              Use the dropdowns above to filter by state and property type. Leave empty to include
+              all values.
             </div>
           </div>
         </CardContent>
