@@ -61,7 +61,8 @@ function sortRows(rows: DrilldownRow[], sortKey: SortKey, sortDirection: SortDir
 }
 
 function formatDollars(value: number) {
-  return `$${Math.round(value).toLocaleString()}`;
+  const millions = value / 1_000_000;
+  return `$${millions.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M`;
 }
 
 export function DrilldownTable({ rows, loading = false }: DrilldownTableProps) {
