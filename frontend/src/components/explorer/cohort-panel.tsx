@@ -31,9 +31,9 @@ const SOURCE_LABELS: Record<CohortRequest["source"], string> = {
   fannie_mae: "Fannie Mae",
 };
 
-const SNAPSHOT_PLACEHOLDERS: Record<CohortRequest["source"], string> = {
-  freddie_mac: "2025Q3",
-  fannie_mae: "202509",
+const SNAPSHOT_OPTIONS: Record<CohortRequest["source"], Array<{ value: string; label: string }>> = {
+  freddie_mac: [{ value: "2025Q3", label: "2025Q3" }],
+  fannie_mae: [{ value: "202509", label: "202509" }],
 };
 
 const BREAKDOWN_DIMENSION_OPTIONS: Array<{ value: CohortRequest["breakdown_dimension"]; label: string }> = [
@@ -90,6 +90,7 @@ export function CohortPanel({
   error = null,
   tone = "primary",
 }: CohortPanelProps) {
+  const snapshotOptions = SNAPSHOT_OPTIONS[request.source];
   const headerClassName =
     tone === "primary" ? "border-blue-100 bg-blue-50/60" : "border-emerald-100 bg-emerald-50/60";
 
@@ -98,9 +99,11 @@ export function CohortPanel({
   };
 
   const updateSource = (source: CohortRequest["source"]) => {
+    const nextSnapshot = SNAPSHOT_OPTIONS[source][0]?.value ?? request.snapshot;
     onChange({
       ...request,
       source,
+      snapshot: nextSnapshot,
     });
   };
 
@@ -156,18 +159,20 @@ export function CohortPanel({
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <SectionIcon icon={Layers3} />
-                Snapshot key
+                Snapshot
               </Label>
-              <Input
-                placeholder={SNAPSHOT_PLACEHOLDERS[request.source]}
+              <select
+                className="h-8 w-full rounded-lg border border-input bg-background px-3 text-sm shadow-sm outline-none"
                 value={request.snapshot}
                 onChange={(event) => updateRequest({ snapshot: event.target.value })}
                 disabled={loading}
-              />
-              <p className="text-xs text-muted-foreground">
-                Freeform snapshot key. Example values are shown as placeholders, but any backend
-                snapshot key can be entered.
-              </p>
+              >
+                {snapshotOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
