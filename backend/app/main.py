@@ -204,17 +204,11 @@ def compare_explorer_cohorts(request: CompareRequest):
 def build_compare_response(
     left: dict[str, float], right: dict[str, float]
 ) -> dict[str, dict[str, float]]:
-    return {
-        "deltas": {
-            key: left[key] - right[key]
-            for key in left.keys()
-        }
-    }
+    return {"deltas": {key: left[key] - right[key] for key in left.keys()}}
 
 
 def _build_cohort_response(request: CohortRequest) -> CohortExplorerResponse:
-    rows = curated_store.load_rows(request.source, request.snapshot)
-    service = ExplorerService(rows)
+    service = ExplorerService(rows=[], curated_store=curated_store)
     return service.build_cohort(
         source=request.source,
         snapshot=request.snapshot,
