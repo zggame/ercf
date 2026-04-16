@@ -711,7 +711,8 @@ class TestERCFEngine(unittest.TestCase):
                     "cnt_mrtg_term": 60,
                     "cnt_amtn_per": 300,
                     "cnt_io_per": 0,
-                    "cd_fxfltr": "A",
+                    "cd_fxfltr": None,
+                    "code_int": "FIX",
                     "mrtg_status": "30",
                     "cnt_rsdntl_unit": 150,
                 },
@@ -736,10 +737,49 @@ class TestERCFEngine(unittest.TestCase):
         self.assertEqual(row["amortization_term_months"], 300)
         self.assertEqual(row["interest_only_term"], 0)
         self.assertEqual(row["interest_only"], False)
-        self.assertEqual(row["rate_type"], "arm")
-        self.assertEqual(row["is_fixed_rate"], False)
+        self.assertEqual(row["rate_type"], "fixed")
+        self.assertEqual(row["is_fixed_rate"], True)
         self.assertEqual(row["payment_performance"], "30")
         self.assertEqual(row["total_units"], 150)
+
+    def test_build_curated_rows_preserves_freddie_senior_housing_and_arm_signals(self):
+        frame = pd.DataFrame(
+            [
+                {
+                    "lnno": 201,
+                    "quarter": "y25q3",
+                    "amt_upb_pch": 500.0,
+                    "amt_upb_endg": 450.0,
+                    "rate_dcr": 1.20,
+                    "rate_ltv": 0.68,
+                    "code_st": "TX",
+                    "geographical_region": "DALLAS, TX",
+                    "rate_int": 0.061,
+                    "cnt_mrtg_term": 240,
+                    "cnt_amtn_per": 240,
+                    "cnt_io_per": 24,
+                    "cd_fxfltr": "FXDFLT",
+                    "code_int": "VAR",
+                    "mrtg_status": "100.0",
+                    "cnt_rsdntl_unit": 80,
+                    "code_sr": "SAP",
+                }
+            ]
+        )
+
+        rows = build_curated_rows("freddie_mac", [frame], snapshot="2025Q3")
+
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row["property_type"], "Seniors Housing")
+        self.assertEqual(row["property_subtype"], "Senior apartments")
+        self.assertEqual(row["property_subtype_code"], "SAP")
+        self.assertEqual(row["rate_type"], "arm")
+        self.assertEqual(row["rate_type_code"], "VAR")
+        self.assertEqual(row["fixed_to_float_code"], "FXDFLT")
+        self.assertFalse(row["is_fixed_rate"])
+        self.assertEqual(row["interest_only_term"], 24)
+        self.assertTrue(row["interest_only"])
 
     def test_build_curated_rows_normalizes_fannie_latest_reporting_period(self):
         frame = pd.DataFrame(

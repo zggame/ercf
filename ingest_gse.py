@@ -23,6 +23,14 @@ from app.datasets.canonical import SOURCE_FANNIE_MAE, SOURCE_FREDDIE_MAC
 
 
 FREDDIE_QUARTER_PATTERN = re.compile(r"^y(?P<year>\d{2})q(?P<quarter>[1-4])$")
+FREDDIE_FIXED_TO_FLOAT_CODES = {"FXDFLT", "FLTFLT", "FLFXFL"}
+FREDDIE_RATE_TYPE_ARM_CODES = {"VAR"}
+FREDDIE_SENIOR_SUBTYPE_MAP = {
+    "ASL": "Assisted living",
+    "CCR": "Continuing care",
+    "ICC": "Independent and/or Congregate",
+    "SAP": "Senior apartments",
+}
 
 
 def _parse_float(value: Any) -> float | None:
@@ -104,6 +112,28 @@ def _freddie_quarter_end_date(value: Any) -> date | None:
     return date(year, month, day)
 
 
+def _freddie_rate_type(row: dict[str, Any]) -> str:
+    code_int = (_clean_text(row.get("code_int")) or "").upper()
+    fixed_to_float_code = (_clean_text(row.get("cd_fxfltr")) or "").upper()
+    if code_int in FREDDIE_RATE_TYPE_ARM_CODES:
+        return "arm"
+    if fixed_to_float_code in FREDDIE_FIXED_TO_FLOAT_CODES:
+        return "arm"
+    return "fixed"
+
+
+def _freddie_property_type(row: dict[str, Any]) -> tuple[str, str | None, str | None]:
+    senior_code = _clean_text(row.get("code_sr"))
+    if senior_code:
+        senior_code = senior_code.upper()
+        return (
+            "Seniors Housing",
+            FREDDIE_SENIOR_SUBTYPE_MAP.get(senior_code, senior_code),
+            senior_code,
+        )
+    return "Multifamily", None, None
+
+
 def _normalize_ltv(value: Any) -> float:
     numeric = _parse_float(value) or 0.0
     if numeric > 1.0:
@@ -132,6 +162,10 @@ def _row_to_output(
     result: Any,
     reporting_date: date | None = None,
     msa: str | None = None,
+    property_subtype: str | None = None,
+    property_subtype_code: str | None = None,
+    rate_type_code: str | None = None,
+    fixed_to_float_code: str | None = None,
 ) -> dict[str, Any]:
     return {
         "loan_id": loan_input.loan_id,
@@ -148,6 +182,8 @@ def _row_to_output(
         "estimated_capital_amount": result.estimated_capital_amount,
         "is_affordable": loan_input.is_affordable,
         "msa": msa,
+        "property_subtype": property_subtype,
+        "property_subtype_code": property_subtype_code,
         "original_loan_amount": loan_input.original_loan_amount,
         "note_rate": loan_input.note_rate,
         "original_term_months": loan_input.original_term_months,
@@ -155,6 +191,8 @@ def _row_to_output(
         "interest_only_term": loan_input.interest_only_term,
         "interest_only": loan_input.interest_only,
         "rate_type": loan_input.rate_type,
+        "rate_type_code": rate_type_code,
+        "fixed_to_float_code": fixed_to_float_code,
         "is_fixed_rate": loan_input.is_fixed_rate,
         "payment_performance": loan_input.payment_performance,
         "total_units": loan_input.total_units,
@@ -193,13 +231,11 @@ def _normalize_freddie_records(
 
     output_rows: list[dict[str, Any]] = []
     for row in latest_rows:
-        rate_type_raw = _clean_text(row.get("cd_fxfltr")) or _clean_text(
-            row.get("code_int")
-        )
-        rate_type = (
-            "arm"
-            if rate_type_raw and rate_type_raw.upper() in ("A", "ARM")
-            else "fixed"
+        rate_type = _freddie_rate_type(row)
+        rate_type_code = _clean_text(row.get("code_int"))
+        fixed_to_float_code = _clean_text(row.get("cd_fxfltr"))
+        property_type, property_subtype, property_subtype_code = _freddie_property_type(
+            row
         )
         io_per = _parse_int(row.get("cnt_io_per"))
 
@@ -209,7 +245,7 @@ def _normalize_freddie_records(
             current_upb=_currency_value(row.get("amt_upb_endg")),
             dscr=_parse_float(row.get("rate_dcr")) or 0.0,
             ltv=_normalize_ltv(row.get("rate_ltv")),
-            property_type="Multifamily",
+            property_type=property_type,
             is_affordable=False,
             state=_clean_text(row.get("code_st")),
             reporting_date=reporting_date,
@@ -235,6 +271,10 @@ def _normalize_freddie_records(
                 result=result,
                 reporting_date=reporting_date,
                 msa=_clean_text(row.get("geographical_region")),
+                property_subtype=property_subtype,
+                property_subtype_code=property_subtype_code,
+                rate_type_code=rate_type_code,
+                fixed_to_float_code=fixed_to_float_code,
             )
         )
 
@@ -392,6 +432,7 @@ def _read_csv_frames(input_path: Path, *, source: str) -> list[pd.DataFrame]:
             "cnt_io_per",
             "mrtg_status",
             "cnt_rsdntl_unit",
+            "code_sr",
         ],
         SOURCE_FANNIE_MAE: [
             "Loan Number",
