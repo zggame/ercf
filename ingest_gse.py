@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import duckdb
 import json
 import re
 import sys
@@ -518,9 +519,17 @@ def _write_curated_artifact(
 ) -> Path:
     output_dir = PROJECT_ROOT / "tmp" / "datasets" / source
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"{snapshot}.json"
-    with open(output_path, "w", encoding="utf-8") as handle:
-        json.dump(rows, handle, indent=2, default=str)
+    output_path = output_dir / f"{snapshot}.parquet"
+    try:
+        df = pd.DataFrame(rows)
+        with duckdb.connect(":memory:") as conn:
+            conn.register("canonical_frame", df)
+            conn.execute(
+                f"COPY (SELECT * FROM canonical_frame) TO '{output_path.as_posix()}' (FORMAT PARQUET)"
+            )
+    except Exception:
+        with open(output_path.with_suffix(".json"), "w", encoding="utf-8") as handle:
+            json.dump(rows, handle, indent=2, default=str)
     return output_path
 
 
