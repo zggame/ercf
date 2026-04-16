@@ -21,13 +21,20 @@ if str(ROOT) not in sys.path:
 
 from ingest_gse import build_curated_rows
 
+
 class TestERCFEngine(unittest.TestCase):
     def setUp(self):
         self.engine = ERCFEngine()
 
-    def _expected_base_weight(self, rate_type: str, dscr_band_key: str, ltv_band_key: str) -> float:
+    def _expected_base_weight(
+        self, rate_type: str, dscr_band_key: str, ltv_band_key: str
+    ) -> float:
         cfg = load_config()
-        table = cfg["arm_base_risk_weights"] if rate_type == "arm" else cfg["fixed_rate_base_risk_weights"]
+        table = (
+            cfg["arm_base_risk_weights"]
+            if rate_type == "arm"
+            else cfg["fixed_rate_base_risk_weights"]
+        )
         return float(table[dscr_band_key][ltv_band_key])
 
     def test_engine_uses_table_driven_base_risk_weight_for_fixed_rate_loans(self):
@@ -38,7 +45,7 @@ class TestERCFEngine(unittest.TestCase):
             current_upb=1000,
             original_loan_amount=2_000_000,
             dscr=1.10,  # dscr_bands: le_125
-            ltv=0.75,   # ltv_bands: le_80
+            ltv=0.75,  # ltv_bands: le_80
             rate_type="fixed",
             interest_only=False,
             original_term_months=120,
@@ -48,7 +55,10 @@ class TestERCFEngine(unittest.TestCase):
         )
 
         result = self.engine.calculate_loan(loan)
-        self.assertAlmostEqual(result.base_risk_weight, self._expected_base_weight("fixed", "le_125", "le_80"))
+        self.assertAlmostEqual(
+            result.base_risk_weight,
+            self._expected_base_weight("fixed", "le_125", "le_80"),
+        )
 
     def test_engine_uses_table_driven_base_risk_weight_for_arm_loans(self):
         # Validate the lookup path (bands -> keys -> table cell), not the literal numbers.
@@ -58,7 +68,7 @@ class TestERCFEngine(unittest.TestCase):
             current_upb=1000,
             original_loan_amount=2_000_000,
             dscr=0.95,  # dscr_bands: le_100
-            ltv=0.65,   # ltv_bands: le_70
+            ltv=0.65,  # ltv_bands: le_70
             rate_type="arm",
             interest_only=False,
             original_term_months=120,
@@ -68,7 +78,10 @@ class TestERCFEngine(unittest.TestCase):
         )
 
         result = self.engine.calculate_loan(loan)
-        self.assertAlmostEqual(result.base_risk_weight, self._expected_base_weight("arm", "le_100", "le_70"))
+        self.assertAlmostEqual(
+            result.base_risk_weight,
+            self._expected_base_weight("arm", "le_100", "le_70"),
+        )
 
     def test_engine_populates_core_multipliers_and_combines_them(self):
         loan = LoanInput(
@@ -77,7 +90,7 @@ class TestERCFEngine(unittest.TestCase):
             current_upb=1000,
             original_loan_amount=750_000,
             dscr=1.10,  # le_125
-            ltv=0.75,   # le_80
+            ltv=0.75,  # le_80
             rate_type="fixed",
             interest_only=False,
             original_term_months=120,
@@ -91,10 +104,16 @@ class TestERCFEngine(unittest.TestCase):
         io_result = self.engine.calculate_loan(io_loan)
 
         # Regression: the new core multipliers must not affect the legacy proxy outputs.
-        self.assertAlmostEqual(io_result.estimated_capital_factor, baseline.estimated_capital_factor)
-        self.assertAlmostEqual(io_result.estimated_capital_amount, baseline.estimated_capital_amount)
+        self.assertAlmostEqual(
+            io_result.estimated_capital_factor, baseline.estimated_capital_factor
+        )
+        self.assertAlmostEqual(
+            io_result.estimated_capital_amount, baseline.estimated_capital_amount
+        )
 
-        self.assertGreater(io_result.interest_only_multiplier, baseline.interest_only_multiplier)
+        self.assertGreater(
+            io_result.interest_only_multiplier, baseline.interest_only_multiplier
+        )
         self.assertGreater(io_result.combined_multiplier, baseline.combined_multiplier)
 
         expected = (
@@ -132,8 +151,14 @@ class TestERCFEngine(unittest.TestCase):
         low_res = self.engine.calculate_loan(low_ltv)
         high_res = self.engine.calculate_loan(high_ltv)
 
-        self.assertAlmostEqual(low_res.base_risk_weight, self._expected_base_weight("fixed", "le_125", "le_60"))
-        self.assertAlmostEqual(high_res.base_risk_weight, self._expected_base_weight("fixed", "le_125", "le_80"))
+        self.assertAlmostEqual(
+            low_res.base_risk_weight,
+            self._expected_base_weight("fixed", "le_125", "le_60"),
+        )
+        self.assertAlmostEqual(
+            high_res.base_risk_weight,
+            self._expected_base_weight("fixed", "le_125", "le_80"),
+        )
         self.assertNotEqual(low_res.base_risk_weight, high_res.base_risk_weight)
 
     def test_policy_config_is_table_driven_and_has_confidence_settings(self):
@@ -206,33 +231,55 @@ class TestERCFEngine(unittest.TestCase):
         )
 
         self.assertEqual(
-            LoanInput(**base_kwargs, government_subsidy_type="section 8").government_subsidy_type,
+            LoanInput(
+                **base_kwargs, government_subsidy_type="section 8"
+            ).government_subsidy_type,
             "pbra",
         )
         self.assertEqual(
-            LoanInput(**base_kwargs, government_subsidy_type="Section-8").government_subsidy_type,
+            LoanInput(
+                **base_kwargs, government_subsidy_type="Section-8"
+            ).government_subsidy_type,
             "pbra",
         )
         self.assertEqual(
-            LoanInput(**base_kwargs, government_subsidy_type="  section_8  ").government_subsidy_type,
+            LoanInput(
+                **base_kwargs, government_subsidy_type="  section_8  "
+            ).government_subsidy_type,
             "pbra",
         )
         self.assertEqual(
-            LoanInput(**base_kwargs, government_subsidy_type="section 515").government_subsidy_type,
+            LoanInput(
+                **base_kwargs, government_subsidy_type="section 515"
+            ).government_subsidy_type,
             "section_515",
         )
         self.assertEqual(
-            LoanInput(**base_kwargs, government_subsidy_type="low income housing tax credit").government_subsidy_type,
+            LoanInput(
+                **base_kwargs, government_subsidy_type="low income housing tax credit"
+            ).government_subsidy_type,
             "lihtc",
         )
         self.assertEqual(
-            LoanInput(**base_kwargs, government_subsidy_type="state/local").government_subsidy_type,
+            LoanInput(
+                **base_kwargs, government_subsidy_type="state/local"
+            ).government_subsidy_type,
             "state_local",
         )
 
-        self.assertIsNone(LoanInput(**base_kwargs, government_subsidy_type="").government_subsidy_type)
-        self.assertIsNone(LoanInput(**base_kwargs, government_subsidy_type="   ").government_subsidy_type)
-        self.assertIsNone(LoanInput(**base_kwargs, government_subsidy_type="unknown subsidy").government_subsidy_type)
+        self.assertIsNone(
+            LoanInput(**base_kwargs, government_subsidy_type="").government_subsidy_type
+        )
+        self.assertIsNone(
+            LoanInput(
+                **base_kwargs, government_subsidy_type="   "
+            ).government_subsidy_type
+        )
+        self.assertIsNone(
+            LoanInput(
+                **base_kwargs, government_subsidy_type="unknown subsidy"
+            ).government_subsidy_type
+        )
 
     def test_pbra_subsidy_type_receives_qualifying_multiplier(self):
         loan = LoanInput(
@@ -411,10 +458,17 @@ class TestERCFEngine(unittest.TestCase):
         self.assertEqual(result.missing_input_count, 4)
         self.assertCountEqual(
             result.missing_inputs,
-            ["rate_type", "payment_performance", "original_loan_amount", "interest_only"],
+            [
+                "rate_type",
+                "payment_performance",
+                "original_loan_amount",
+                "interest_only",
+            ],
         )
 
-    def test_confidence_suppresses_result_below_threshold_but_preserves_legacy_proxy(self):
+    def test_confidence_suppresses_result_below_threshold_but_preserves_legacy_proxy(
+        self,
+    ):
         self.engine.config = {
             "base_risk_weight": 0.5,
             "confidence": {
@@ -515,9 +569,9 @@ class TestERCFEngine(unittest.TestCase):
             loan_id="TEST-1",
             original_upb=1000,
             current_upb=1000,
-            dscr=1.35, # should map to 1.0 multiplier based on config
+            dscr=1.35,  # should map to 1.0 multiplier based on config
             ltv=0.65,  # should map to 1.0 multiplier
-            property_type="Multifamily" # 1.0 multiplier
+            property_type="Multifamily",  # 1.0 multiplier
         )
         result = self.engine.calculate_loan(loan)
 
@@ -555,9 +609,9 @@ class TestERCFEngine(unittest.TestCase):
             loan_id="TEST-2",
             original_upb=1000,
             current_upb=1000,
-            dscr=0.9, # max 1.0 = 1.5 multiplier
-            ltv=0.85, # max 1.0 = 1.5 multiplier
-            property_type="Seniors Housing" # 1.1 multiplier
+            dscr=0.9,  # max 1.0 = 1.5 multiplier
+            ltv=0.85,  # max 1.0 = 1.5 multiplier
+            property_type="Seniors Housing",  # 1.1 multiplier
         )
         result = self.engine.calculate_loan(loan)
 
@@ -909,7 +963,9 @@ class TestERCFEngine(unittest.TestCase):
         )
 
         self.assertEqual(response.cohort_label, "Freddie Mac 2025Q3")
-        self.assertEqual(response.fixed_charts["capital_factor_bands"].points[0].label, "0.0-0.5")
+        self.assertEqual(
+            response.fixed_charts["capital_factor_bands"].points[0].label, "0.0-0.5"
+        )
         self.assertEqual(response.breakdown.dimension, "state")
         self.assertEqual(response.breakdown.rows[1].key, "TX")
 
@@ -1153,6 +1209,7 @@ class TestExplorerEndpoints(unittest.TestCase):
 
     def test_explorer_compare_endpoint_uses_curated_store_and_service(self):
         from app.schema import CohortRequest, CompareRequest
+        from pathlib import Path
 
         request = CompareRequest(
             left=CohortRequest(
@@ -1200,13 +1257,17 @@ class TestExplorerEndpoints(unittest.TestCase):
                 "estimated_capital_amount": 120.0,
             }
         ]
+        nonexistent = Path("/nonexistent/2025Q3.parquet")
 
         with patch.object(
-            main.curated_store,
-            "load_rows",
-            side_effect=[left_rows, right_rows],
-        ) as load_rows:
-            response = main.compare_explorer_cohorts(request)
+            main.curated_store, "get_parquet_path", return_value=nonexistent
+        ):
+            with patch.object(
+                main.curated_store,
+                "load_rows",
+                side_effect=[left_rows, right_rows],
+            ) as load_rows:
+                response = main.compare_explorer_cohorts(request)
 
         self.assertEqual(load_rows.call_count, 2)
         self.assertEqual(response.left.cohort_label, "freddie_mac 2025Q3")
@@ -1218,6 +1279,7 @@ class TestExplorerEndpoints(unittest.TestCase):
 
     def test_explorer_cohort_endpoint_uses_curated_store_and_service(self):
         from app.schema import CohortRequest
+        from pathlib import Path
 
         request = CohortRequest(
             source="freddie_mac",
@@ -1241,9 +1303,15 @@ class TestExplorerEndpoints(unittest.TestCase):
                 "estimated_capital_amount": 50.0,
             }
         ]
+        nonexistent = Path("/nonexistent/2025Q3.parquet")
 
-        with patch.object(main.curated_store, "load_rows", return_value=rows) as load_rows:
-            response = main.get_explorer_cohort(request)
+        with patch.object(
+            main.curated_store, "get_parquet_path", return_value=nonexistent
+        ):
+            with patch.object(
+                main.curated_store, "load_rows", return_value=rows
+            ) as load_rows:
+                response = main.get_explorer_cohort(request)
 
         load_rows.assert_called_once_with("freddie_mac", "2025Q3")
         self.assertEqual(response.cohort_label, "freddie_mac 2025Q3")
@@ -1253,6 +1321,8 @@ class TestExplorerEndpoints(unittest.TestCase):
 
 class TestExplorerHttpEndpoints(unittest.TestCase):
     def test_post_explorer_cohort_returns_serialized_response(self):
+        from pathlib import Path
+
         rows = [
             {
                 "loan_id": "FRE-1",
@@ -1268,19 +1338,23 @@ class TestExplorerHttpEndpoints(unittest.TestCase):
                 "estimated_capital_amount": 50.0,
             }
         ]
+        nonexistent = Path("/nonexistent/2025Q3.parquet")
 
         with TestClient(main.app, raise_server_exceptions=False) as client:
-            with patch.object(main.curated_store, "load_rows", return_value=rows):
-                response = client.post(
-                    "/api/explorer/cohort",
-                    json={
-                        "source": "freddie_mac",
-                        "snapshot": "2025Q3",
-                        "filters": {"state": ["CA"]},
-                        "breakdown_dimension": "state",
-                        "breakdown_metric": "current_upb_total",
-                    },
-                )
+            with patch.object(
+                main.curated_store, "get_parquet_path", return_value=nonexistent
+            ):
+                with patch.object(main.curated_store, "load_rows", return_value=rows):
+                    response = client.post(
+                        "/api/explorer/cohort",
+                        json={
+                            "source": "freddie_mac",
+                            "snapshot": "2025Q3",
+                            "filters": {"state": ["CA"]},
+                            "breakdown_dimension": "state",
+                            "breakdown_metric": "current_upb_total",
+                        },
+                    )
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
@@ -1289,6 +1363,8 @@ class TestExplorerHttpEndpoints(unittest.TestCase):
         self.assertEqual(payload["breakdown"]["rows"][0]["key"], "CA")
 
     def test_post_explorer_compare_returns_serialized_response(self):
+        from pathlib import Path
+
         left_rows = [
             {
                 "loan_id": "FRE-L1",
@@ -1319,32 +1395,36 @@ class TestExplorerHttpEndpoints(unittest.TestCase):
                 "estimated_capital_amount": 120.0,
             }
         ]
+        nonexistent = Path("/nonexistent/2025Q3.parquet")
 
         with TestClient(main.app, raise_server_exceptions=False) as client:
             with patch.object(
-                main.curated_store,
-                "load_rows",
-                side_effect=[left_rows, right_rows],
+                main.curated_store, "get_parquet_path", return_value=nonexistent
             ):
-                response = client.post(
-                    "/api/explorer/compare",
-                    json={
-                        "left": {
-                            "source": "freddie_mac",
-                            "snapshot": "2025Q3",
-                            "filters": {"state": ["CA"]},
-                            "breakdown_dimension": "state",
-                            "breakdown_metric": "current_upb_total",
+                with patch.object(
+                    main.curated_store,
+                    "load_rows",
+                    side_effect=[left_rows, right_rows],
+                ):
+                    response = client.post(
+                        "/api/explorer/compare",
+                        json={
+                            "left": {
+                                "source": "freddie_mac",
+                                "snapshot": "2025Q3",
+                                "filters": {"state": ["CA"]},
+                                "breakdown_dimension": "state",
+                                "breakdown_metric": "current_upb_total",
+                            },
+                            "right": {
+                                "source": "freddie_mac",
+                                "snapshot": "2025Q4",
+                                "filters": {"state": ["TX"]},
+                                "breakdown_dimension": "state",
+                                "breakdown_metric": "current_upb_total",
+                            },
                         },
-                        "right": {
-                            "source": "freddie_mac",
-                            "snapshot": "2025Q4",
-                            "filters": {"state": ["TX"]},
-                            "breakdown_dimension": "state",
-                            "breakdown_metric": "current_upb_total",
-                        },
-                    },
-                )
+                    )
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
@@ -1427,5 +1507,6 @@ class TestExplorerHttpEndpoints(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("Unsupported breakdown dimension", response.json()["detail"])
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

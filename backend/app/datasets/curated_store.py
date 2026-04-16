@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Any
 
 import duckdb
+import numpy as np
+import pandas as pd
 
 from .canonical import SNAPSHOT_NAME_PATTERN, SUPPORTED_SOURCES
 from .duckdb_store import DuckDBStore
@@ -42,4 +44,5 @@ class CuratedStore:
             df = conn.execute(
                 f"SELECT * FROM read_parquet('{path.as_posix()}')"
             ).fetch_df()
-        return df.where(df.notnull(), None).to_dict(orient="records")
+        df = df.replace({np.nan: None})
+        return df.to_dict(orient="records")

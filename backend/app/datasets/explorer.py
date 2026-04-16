@@ -3,6 +3,9 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any, Optional
 
+import numpy as np
+import pandas as pd
+
 from app.schema import (
     BreakdownResponse,
     BreakdownRow,
@@ -298,7 +301,8 @@ class ExplorerService:
         with db.connect() as conn:
             df = conn.execute(query).fetch_df()
 
-        rows = df.where(df.notnull(), None).to_dict(orient="records")
+        df = df.replace({np.nan: None})
+        rows = df.to_dict(orient="records")
 
         ordered_rows = sorted(rows, key=lambda row: str(row.get("loan_id", "")))
         return [
