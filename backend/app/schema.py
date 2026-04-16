@@ -178,7 +178,9 @@ class PortfolioSummary(BaseModel):
 class CohortRequest(BaseModel):
     source: str
     snapshot: str
-    filters: dict[str, list[str] | list[float] | list[int]] = Field(default_factory=dict)
+    filters: dict[str, list[str] | list[float] | list[int]] = Field(
+        default_factory=dict
+    )
     breakdown_dimension: str = "state"
     breakdown_metric: str = "current_upb_total"
 
@@ -224,6 +226,17 @@ class DrilldownRow(BaseModel):
     ltv: float
     estimated_capital_factor: float
     estimated_capital_amount: float
+    note_rate: Optional[float] = None
+    original_term_months: Optional[int] = None
+    amortization_term_months: Optional[int] = None
+    interest_only_term: Optional[int] = None
+    interest_only: Optional[bool] = None
+    rate_type: Optional[str] = None
+    is_fixed_rate: Optional[bool] = None
+    payment_performance: Optional[str] = None
+    total_units: Optional[int] = None
+    occupancy_rate: Optional[float] = None
+    is_affordable: Optional[bool] = None
 
 
 class CohortExplorerResponse(BaseModel):

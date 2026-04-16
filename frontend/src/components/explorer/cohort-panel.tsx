@@ -39,6 +39,8 @@ const SNAPSHOT_OPTIONS: Record<CohortRequest["source"], Array<{ value: string; l
 const BREAKDOWN_DIMENSION_OPTIONS: Array<{ value: CohortRequest["breakdown_dimension"]; label: string }> = [
   { value: "state", label: "State" },
   { value: "property_type", label: "Property type" },
+  { value: "rate_type", label: "Rate type" },
+  { value: "interest_only", label: "Interest only" },
 ];
 
 const BREAKDOWN_METRIC_OPTIONS: Array<{ value: CohortRequest["breakdown_metric"]; label: string }> = [
@@ -60,6 +62,10 @@ const PROPERTY_TYPES = [
   "Student Housing",
   "Manufactured Housing",
 ];
+
+const RATE_TYPES = ["fixed", "arm"];
+
+const INTEREST_ONLY_OPTIONS = ["true", "false"];
 
 function cohortLabel(request: CohortRequest) {
   return `${SOURCE_LABELS[request.source]} ${request.snapshot}`;
@@ -288,6 +294,33 @@ export function CohortPanel({
                   onChange({ ...request, filters: { ...request.filters, property_type: next } })
                 }
                 placeholder="All types"
+                disabled={loading}
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Rate type filter</Label>
+              <MultiSelect
+                options={RATE_TYPES}
+                selected={(request.filters.rate_type as string[]) ?? []}
+                onChange={(next) =>
+                  onChange({ ...request, filters: { ...request.filters, rate_type: next } })
+                }
+                placeholder="All rate types"
+                disabled={loading}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Interest only filter</Label>
+              <MultiSelect
+                options={INTEREST_ONLY_OPTIONS}
+                selected={(request.filters.interest_only as string[]) ?? []}
+                onChange={(next) =>
+                  onChange({ ...request, filters: { ...request.filters, interest_only: next } })
+                }
+                placeholder="All"
                 disabled={loading}
               />
             </div>

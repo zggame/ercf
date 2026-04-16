@@ -13,7 +13,7 @@ type DrilldownTableProps = {
   loading?: boolean;
 };
 
-type SortKey = "loan_id" | "state" | "current_upb" | "estimated_capital_factor" | "estimated_capital_amount";
+type SortKey = "loan_id" | "state" | "current_upb" | "estimated_capital_factor" | "estimated_capital_amount" | "note_rate" | "rate_type" | "interest_only";
 type SortDirection = "asc" | "desc";
 
 const PAGE_SIZE = 25;
@@ -24,6 +24,9 @@ const SORT_LABELS: Record<SortKey, string> = {
   current_upb: "Current UPB",
   estimated_capital_factor: "Capital Factor",
   estimated_capital_amount: "Capital Amount",
+  note_rate: "Note Rate",
+  rate_type: "Rate Type",
+  interest_only: "Interest Only",
 };
 
 function matchesQuery(row: DrilldownRow, query: string) {
@@ -38,6 +41,10 @@ function matchesQuery(row: DrilldownRow, query: string) {
     row.ltv.toString(),
     row.estimated_capital_factor.toString(),
     row.estimated_capital_amount.toString(),
+    row.rate_type ?? "",
+    row.interest_only != null ? (row.interest_only ? "yes" : "no") : "",
+    row.note_rate?.toString() ?? "",
+    row.payment_performance ?? "",
   ]
     .join(" ")
     .toLowerCase();
@@ -50,10 +57,14 @@ function sortRows(rows: DrilldownRow[], sortKey: SortKey, sortDirection: SortDir
   return [...rows].sort((left, right) => {
     let comparison = 0;
 
-    if (sortKey === "loan_id" || sortKey === "state") {
+    if (sortKey === "loan_id" || sortKey === "state" || sortKey === "rate_type") {
       comparison = (left[sortKey] ?? "").localeCompare(right[sortKey] ?? "");
+    } else if (sortKey === "interest_only") {
+      const lv = left.interest_only == null ? -1 : left.interest_only ? 1 : 0;
+      const rv = right.interest_only == null ? -1 : right.interest_only ? 1 : 0;
+      comparison = lv - rv;
     } else {
-      comparison = left[sortKey] - right[sortKey];
+      comparison = (left[sortKey] ?? 0) - (right[sortKey] ?? 0);
     }
 
     return comparison * direction;
@@ -140,6 +151,9 @@ export function DrilldownTable({ rows, loading = false }: DrilldownTableProps) {
                 <TableHead className="text-right">Current UPB</TableHead>
                 <TableHead className="text-right">DSCR</TableHead>
                 <TableHead className="text-right">LTV</TableHead>
+                <TableHead className="text-right">Note Rate</TableHead>
+                <TableHead>Rate Type</TableHead>
+                <TableHead>Int. Only</TableHead>
                 <TableHead className="text-right">Cap. Factor</TableHead>
                 <TableHead className="text-right">Cap. Amount</TableHead>
               </TableRow>
@@ -147,13 +161,13 @@ export function DrilldownTable({ rows, loading = false }: DrilldownTableProps) {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={13} className="py-8 text-center text-sm text-muted-foreground">
                     Loading drilldown records...
                   </TableCell>
                 </TableRow>
               ) : visibleRows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={13} className="py-8 text-center text-sm text-muted-foreground">
                     No drilldown rows match the current search.
                   </TableCell>
                 </TableRow>
@@ -168,6 +182,9 @@ export function DrilldownTable({ rows, loading = false }: DrilldownTableProps) {
                     <TableCell className="text-right">{formatDollars(row.current_upb)}</TableCell>
                     <TableCell className="text-right">{row.dscr.toFixed(2)}x</TableCell>
                     <TableCell className="text-right">{(row.ltv * 100).toFixed(1)}%</TableCell>
+                    <TableCell className="text-right">{row.note_rate != null ? `${(row.note_rate * 100).toFixed(2)}%` : "—"}</TableCell>
+                    <TableCell>{row.rate_type ?? "—"}</TableCell>
+                    <TableCell>{row.interest_only != null ? (row.interest_only ? "Yes" : "No") : "—"}</TableCell>
                     <TableCell className="text-right">{(row.estimated_capital_factor * 100).toFixed(1)}%</TableCell>
                     <TableCell className="text-right">{formatDollars(row.estimated_capital_amount)}</TableCell>
                   </TableRow>

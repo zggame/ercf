@@ -19,6 +19,8 @@ SUPPORTED_BREAKDOWN_DIMENSIONS = frozenset(
     {
         BREAKDOWN_DIMENSION_STATE,
         BREAKDOWN_DIMENSION_PROPERTY_TYPE,
+        "rate_type",
+        "interest_only",
     }
 )
 
@@ -28,6 +30,9 @@ SUPPORTED_FILTER_FIELDS = frozenset(
         BREAKDOWN_DIMENSION_PROPERTY_TYPE,
         "is_affordable",
         "msa",
+        "rate_type",
+        "interest_only",
+        "payment_performance",
     }
 )
 
