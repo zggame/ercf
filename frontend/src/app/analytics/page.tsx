@@ -22,6 +22,8 @@ const PRIMARY_DEFAULT: CohortRequest = {
   filters: {
     state: [],
     property_type: [],
+    rate_type: [],
+    interest_only: [],
   },
   breakdown_dimension: "state",
   breakdown_metric: "current_upb_total",
@@ -33,6 +35,8 @@ const COMPARE_DEFAULT: CohortRequest = {
   filters: {
     state: [],
     property_type: [],
+    rate_type: [],
+    interest_only: [],
   },
   breakdown_dimension: "state",
   breakdown_metric: "current_upb_total",

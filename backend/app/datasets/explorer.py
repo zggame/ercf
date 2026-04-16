@@ -146,11 +146,24 @@ class ExplorerService:
                 estimated_capital_amount=float(
                     row.get("estimated_capital_amount", 0.0) or 0.0
                 ),
+                note_rate=row.get("note_rate"),
+                original_term_months=row.get("original_term_months"),
+                amortization_term_months=row.get("amortization_term_months"),
+                interest_only_term=row.get("interest_only_term"),
+                interest_only=row.get("interest_only"),
+                rate_type=row.get("rate_type"),
+                is_fixed_rate=row.get("is_fixed_rate"),
+                payment_performance=row.get("payment_performance"),
+                total_units=row.get("total_units"),
+                occupancy_rate=row.get("occupancy_rate"),
+                is_affordable=row.get("is_affordable"),
             )
             for row in ordered_rows
         ]
 
-    def _capital_factor_band_counts(self, rows: list[dict[str, Any]]) -> dict[str, float]:
+    def _capital_factor_band_counts(
+        self, rows: list[dict[str, Any]]
+    ) -> dict[str, float]:
         counts = {label: 0.0 for label, _, _ in CAPITAL_FACTOR_BANDS}
         for row in rows:
             value = float(row.get("estimated_capital_factor", 0.0) or 0.0)
@@ -169,8 +182,7 @@ class ExplorerService:
             grouped[str(key if key not in (None, "") else "Unknown")].append(row)
 
         return {
-            key: metric_value(group_rows, metric)
-            for key, group_rows in grouped.items()
+            key: metric_value(group_rows, metric) for key, group_rows in grouped.items()
         }
 
     @staticmethod

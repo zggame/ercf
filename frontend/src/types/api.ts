@@ -110,7 +110,7 @@ export interface CohortRequest {
   source: "freddie_mac" | "fannie_mae";
   snapshot: string;
   filters: Record<string, string[]>;
-  breakdown_dimension: "state" | "property_type";
+  breakdown_dimension: "state" | "property_type" | "rate_type" | "interest_only";
   breakdown_metric:
     | "loan_count"
     | "current_upb_total"
@@ -158,6 +158,17 @@ export interface DrilldownRow {
   ltv: number;
   estimated_capital_factor: number;
   estimated_capital_amount: number;
+  note_rate?: number;
+  original_term_months?: number;
+  amortization_term_months?: number;
+  interest_only_term?: number;
+  interest_only?: boolean;
+  rate_type?: string;
+  is_fixed_rate?: boolean;
+  payment_performance?: string;
+  total_units?: number;
+  occupancy_rate?: number;
+  is_affordable?: boolean;
 }
 
 export interface CohortExplorerResponse {
