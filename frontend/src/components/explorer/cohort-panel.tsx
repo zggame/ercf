@@ -24,6 +24,7 @@ type CohortPanelProps = {
   loading?: boolean;
   error?: string | null;
   tone?: "primary" | "secondary";
+  showBreakdownControls?: boolean;
 };
 
 const SOURCE_LABELS: Record<CohortRequest["source"], string> = {
@@ -185,6 +186,7 @@ export function CohortPanel({
   loading = false,
   error = null,
   tone = "primary",
+  showBreakdownControls = true,
 }: CohortPanelProps) {
   const snapshotOptions = SNAPSHOT_OPTIONS[request.source];
   const headerClassName =
@@ -343,7 +345,7 @@ export function CohortPanel({
 
       <FixedCharts fixedCharts={chartData} loading={loading} />
 
-      {tone === "primary" && (
+      {showBreakdownControls && tone === "primary" && (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
           <div className="flex items-center gap-2">
             <Label className="text-xs font-medium text-slate-600 whitespace-nowrap">Dimension</Label>
