@@ -169,7 +169,13 @@ def _normalize_freddie_records(
     engine: ERCFEngine,
 ) -> list[dict[str, Any]]:
     latest_quarter = max(
-        (quarter for quarter in (_parse_freddie_quarter(row.get("quarter")) for row in records) if quarter is not None),
+        (
+            quarter
+            for quarter in (
+                _parse_freddie_quarter(row.get("quarter")) for row in records
+            )
+            if quarter is not None
+        ),
         default=None,
     )
     if latest_quarter is None:
@@ -181,12 +187,20 @@ def _normalize_freddie_records(
         if _parse_freddie_quarter(row.get("quarter")) == latest_quarter
     ]
     resolved_snapshot = snapshot or f"{latest_quarter[0]}Q{latest_quarter[1]}"
-    reporting_date = _freddie_quarter_end_date(f"y{str(latest_quarter[0])[-2:]}q{latest_quarter[1]}")
+    reporting_date = _freddie_quarter_end_date(
+        f"y{str(latest_quarter[0])[-2:]}q{latest_quarter[1]}"
+    )
 
     output_rows: list[dict[str, Any]] = []
     for row in latest_rows:
-        rate_type_raw = _clean_text(row.get("cd_fxfltr")) or _clean_text(row.get("code_int"))
-        rate_type = "arm" if rate_type_raw and rate_type_raw.upper() in ("A", "ARM") else "fixed"
+        rate_type_raw = _clean_text(row.get("cd_fxfltr")) or _clean_text(
+            row.get("code_int")
+        )
+        rate_type = (
+            "arm"
+            if rate_type_raw and rate_type_raw.upper() in ("A", "ARM")
+            else "fixed"
+        )
         io_per = _parse_int(row.get("cnt_io_per"))
 
         loan_input = LoanInput(
@@ -202,7 +216,9 @@ def _normalize_freddie_records(
             original_loan_amount=_currency_value(row.get("amt_upb_pch")),
             note_rate=_parse_float(row.get("rate_int")),
             original_term_months=_parse_int(row.get("cnt_mrtg_term")),
-            amortization_term_months=_parse_int(row.get("cnt_amtn_per")),
+            amortization_term_months=amtn
+            if (amtn := _parse_int(row.get("cnt_amtn_per"))) and amtn > 0
+            else None,
             interest_only_term=io_per,
             interest_only=io_per > 0 if io_per is not None else False,
             rate_type=rate_type,
@@ -242,7 +258,9 @@ def _normalize_fannie_records(
 
     latest_reporting_date = max(reporting_date for reporting_date, _ in dated_rows)
     latest_rows = [
-        row for reporting_date, row in dated_rows if reporting_date == latest_reporting_date
+        row
+        for reporting_date, row in dated_rows
+        if reporting_date == latest_reporting_date
     ]
     resolved_snapshot = snapshot or latest_reporting_date.strftime("%Y%m")
 
@@ -251,7 +269,9 @@ def _normalize_fannie_records(
         original_upb = _currency_value(row.get("Original UPB"))
         current_upb = _currency_value(row.get("UPB - Current"))
         rate_type_raw = _clean_text(row.get("Interest Type"))
-        rate_type = "arm" if rate_type_raw and "ARM" in rate_type_raw.upper() else "fixed"
+        rate_type = (
+            "arm" if rate_type_raw and "ARM" in rate_type_raw.upper() else "fixed"
+        )
         io_per = _parse_int(row.get("Original I/O Term"))
 
         loan_input = LoanInput(
@@ -260,15 +280,19 @@ def _normalize_fannie_records(
             current_upb=current_upb,
             dscr=_parse_float(row.get("Underwritten DSCR")) or 0.0,
             ltv=_normalize_ltv(row.get("Loan Acquisition LTV")),
-            property_type=_clean_text(row.get("Specific Property Type")) or "Multifamily",
+            property_type=_clean_text(row.get("Specific Property Type"))
+            or "Multifamily",
             is_affordable=bool(_clean_text(row.get("Affordable Housing Type"))),
             state=_clean_text(row.get("Property State")),
             msa=_clean_text(row.get("Metropolitan Statistical Area")),
             reporting_date=latest_reporting_date,
             original_loan_amount=original_upb or current_upb,
-            note_rate=_parse_float(row.get("Note Rate")) or _parse_float(row.get("Original Interest Rate")),
+            note_rate=_parse_float(row.get("Note Rate"))
+            or _parse_float(row.get("Original Interest Rate")),
             original_term_months=_parse_int(row.get("Original Term")),
-            amortization_term_months=_parse_int(row.get("Amortization Term")),
+            amortization_term_months=amtn
+            if (amtn := _parse_int(row.get("Amortization Term"))) and amtn > 0
+            else None,
             interest_only_term=io_per,
             interest_only=io_per > 0 if io_per is not None else False,
             rate_type=rate_type,
@@ -298,7 +322,9 @@ def _detect_latest_fannie_reporting_date(input_path: Path) -> date | None:
 
     def consider_frame(frame: pd.DataFrame) -> None:
         nonlocal latest_reporting_date
-        parsed_dates = pd.to_datetime(frame["Reporting Period Date"], errors="coerce").dropna()
+        parsed_dates = pd.to_datetime(
+            frame["Reporting Period Date"], errors="coerce"
+        ).dropna()
         if parsed_dates.empty:
             return
         candidate = parsed_dates.max().date()
@@ -399,7 +425,9 @@ def _read_csv_frames(input_path: Path, *, source: str) -> list[pd.DataFrame]:
             return []
 
         def filter_frame(frame: pd.DataFrame) -> pd.DataFrame:
-            return _rows_with_reporting_date(frame, "Reporting Period Date", latest_reporting_date)
+            return _rows_with_reporting_date(
+                frame, "Reporting Period Date", latest_reporting_date
+            )
 
         if input_path.suffix.lower() == ".zip":
             frames: list[pd.DataFrame] = []
@@ -437,12 +465,16 @@ def _read_csv_frames(input_path: Path, *, source: str) -> list[pd.DataFrame]:
             for member in sorted(archive.namelist()):
                 if member.lower().endswith(".csv"):
                     with archive.open(member) as handle:
-                        frames.append(pd.read_csv(handle, low_memory=False, usecols=usecols))
+                        frames.append(
+                            pd.read_csv(handle, low_memory=False, usecols=usecols)
+                        )
         return frames
     return [pd.read_csv(input_path, low_memory=False, usecols=usecols)]
 
 
-def _write_curated_artifact(source: str, snapshot: str, rows: list[dict[str, Any]]) -> Path:
+def _write_curated_artifact(
+    source: str, snapshot: str, rows: list[dict[str, Any]]
+) -> Path:
     output_dir = PROJECT_ROOT / "tmp" / "datasets" / source
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{snapshot}.json"
@@ -463,7 +495,9 @@ def ingest_source(source: str, input_path: Path, snapshot: str | None = None) ->
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build curated GSE dataset artifacts.")
-    parser.add_argument("--source", required=True, choices=[SOURCE_FREDDIE_MAC, SOURCE_FANNIE_MAE])
+    parser.add_argument(
+        "--source", required=True, choices=[SOURCE_FREDDIE_MAC, SOURCE_FANNIE_MAE]
+    )
     parser.add_argument("--input", required=True)
     parser.add_argument("--snapshot", default=None)
     args = parser.parse_args()
