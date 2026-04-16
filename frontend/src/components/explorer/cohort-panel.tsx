@@ -25,6 +25,7 @@ type CohortPanelProps = {
   error?: string | null;
   tone?: "primary" | "secondary";
   showBreakdownControls?: boolean;
+  showBottomSections?: boolean;
 };
 
 const SOURCE_LABELS: Record<CohortRequest["source"], string> = {
@@ -187,6 +188,7 @@ export function CohortPanel({
   error = null,
   tone = "primary",
   showBreakdownControls = true,
+  showBottomSections = true,
 }: CohortPanelProps) {
   const snapshotOptions = SNAPSHOT_OPTIONS[request.source];
   const headerClassName =
@@ -388,15 +390,19 @@ export function CohortPanel({
         </div>
       )}
 
-      <BreakdownChart breakdown={breakdown} loading={loading} />
+      {showBottomSections && (
+        <>
+          <BreakdownChart breakdown={breakdown} loading={loading} />
 
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
-          <Table2 className="h-4 w-4 text-muted-foreground" />
-          Drilldown
-        </div>
-        <DrilldownTable rows={data?.drilldown_rows ?? null} loading={loading} />
-      </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+              <Table2 className="h-4 w-4 text-muted-foreground" />
+              Drilldown
+            </div>
+            <DrilldownTable rows={data?.drilldown_rows ?? null} loading={loading} />
+          </div>
+        </>
+      )}
     </section>
   );
 }

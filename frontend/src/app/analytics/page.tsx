@@ -9,6 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { CompareDeltaCards } from "@/components/explorer/compare-delta-cards";
 import { CohortPanel } from "@/components/explorer/cohort-panel";
+import { BreakdownChart } from "@/components/explorer/breakdown-chart";
+import { DrilldownTable } from "@/components/explorer/drilldown-table";
+import { Table2 } from "lucide-react";
 import type {
   CohortExplorerResponse,
   CohortRequest,
@@ -315,25 +318,26 @@ export default function AnalyticsPage() {
       </section>
 
       {compareEnabled ? (
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-stretch">
-          <div className="flex-1 min-w-0">
-            <CohortPanel
-              title="Primary Cohort"
-              description="The main explorer panel. Use it to inspect one curated dataset at a time."
-              request={primaryRequest}
-              onChange={setPrimaryRequest}
-              data={primaryPanelData}
-              loading={loading}
-              error={primaryError}
-              tone="primary"
-              showBreakdownControls={false}
-            />
-          </div>
+        <div className="flex flex-col gap-6">
+          <CompareDeltaCards compare={compareData} loading={loading} />
 
-          <div className="flex flex-col xl:w-[calc(50%-0.75rem)]">
-            <CompareDeltaCards compare={compareData} loading={loading} />
-            <BreakdownSharedBar />
-            <div className="flex-1">
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-stretch">
+            <div className="flex-1 min-w-0">
+              <CohortPanel
+                title="Primary Cohort"
+                description="The main explorer panel. Use it to inspect one curated dataset at a time."
+                request={primaryRequest}
+                onChange={setPrimaryRequest}
+                data={primaryPanelData}
+                loading={loading}
+                error={primaryError}
+                tone="primary"
+                showBreakdownControls={false}
+                showBottomSections={false}
+              />
+            </div>
+
+            <div className="flex-1 min-w-0">
               <CohortPanel
                 title="Comparison Cohort"
                 description="Use the same controls to keep the two panels directly comparable."
@@ -344,7 +348,34 @@ export default function AnalyticsPage() {
                 error={compareError}
                 tone="secondary"
                 showBreakdownControls={false}
+                showBottomSections={false}
               />
+            </div>
+          </div>
+
+          <BreakdownSharedBar />
+
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-stretch">
+            <div className="flex-1 min-w-0 space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <BreakdownChart breakdown={primaryPanelData?.breakdown ?? null} loading={loading} />
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <Table2 className="h-4 w-4 text-muted-foreground" />
+                  Drilldown
+                </div>
+                <DrilldownTable rows={primaryPanelData?.drilldown_rows ?? null} loading={loading} />
+              </div>
+            </div>
+
+            <div className="flex-1 min-w-0 space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <BreakdownChart breakdown={secondaryPanelData?.breakdown ?? null} loading={loading} />
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <Table2 className="h-4 w-4 text-muted-foreground" />
+                  Drilldown
+                </div>
+                <DrilldownTable rows={secondaryPanelData?.drilldown_rows ?? null} loading={loading} />
+              </div>
             </div>
           </div>
         </div>
