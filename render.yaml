@@ -8,16 +8,8 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.12.0"
-      - key: PORTFOLIO_DB_PATH
-        value: "/data/portfolio_data.json"
-      - key: DATA_ROOT
-        value: "/opt/render/project/src/tmp/datasets"
       - key: ALLOWED_ORIGINS
         sync: false
-    disk:
-      name: portfolio-storage
-      mountPath: /data
-      sizeGB: 1
 
   - type: web
     name: ercf-frontend
