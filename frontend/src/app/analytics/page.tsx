@@ -193,10 +193,10 @@ export default function AnalyticsPage() {
             className="h-7 rounded-md border border-input bg-background px-2 text-xs shadow-sm outline-none"
             value={primaryRequest.breakdown_dimension}
             onChange={(event) =>
-              setPrimaryRequestRaw((prev) => ({
-                ...prev,
+              setPrimaryRequest({
+                ...primaryRequest,
                 breakdown_dimension: event.target.value as CohortRequest["breakdown_dimension"],
-              }))
+              })
             }
             disabled={loading}
           >
@@ -213,10 +213,10 @@ export default function AnalyticsPage() {
             className="h-7 rounded-md border border-input bg-background px-2 text-xs shadow-sm outline-none"
             value={primaryRequest.breakdown_metric}
             onChange={(event) =>
-              setPrimaryRequestRaw((prev) => ({
-                ...prev,
+              setPrimaryRequest({
+                ...primaryRequest,
                 breakdown_metric: event.target.value as CohortRequest["breakdown_metric"],
-              }))
+              })
             }
             disabled={loading}
           >
