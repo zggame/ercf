@@ -5,14 +5,31 @@ import { useEffect, useState } from "react";
 import { AlertCircle, ArrowRightLeft, ChartColumn, Layers3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { CompareDeltaCards } from "@/components/explorer/compare-delta-cards";
 import { CohortPanel } from "@/components/explorer/cohort-panel";
+import { BreakdownChart } from "@/components/explorer/breakdown-chart";
+import { DrilldownTable } from "@/components/explorer/drilldown-table";
+import { Table2 } from "lucide-react";
 import type {
   CohortExplorerResponse,
   CohortRequest,
   CompareResponse,
 } from "@/types/api";
+
+const BREAKDOWN_DIMENSION_OPTIONS: Array<{ value: CohortRequest["breakdown_dimension"]; label: string }> = [
+  { value: "state", label: "State" },
+  { value: "property_type", label: "Property type" },
+  { value: "rate_type", label: "Rate type" },
+  { value: "interest_only", label: "Interest only" },
+];
+
+const BREAKDOWN_METRIC_OPTIONS: Array<{ value: CohortRequest["breakdown_metric"]; label: string }> = [
+  { value: "loan_count", label: "Loan count" },
+  { value: "current_upb_total", label: "Current UPB" },
+  { value: "total_estimated_capital_amount", label: "Est. capital amount" },
+];
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -163,13 +180,56 @@ export default function AnalyticsPage() {
     };
   }, [requestSignature, compareEnabled, compareRequest, primaryRequest]);
 
-  const panelGridClassName = compareEnabled
-    ? "grid grid-cols-1 gap-6 xl:grid-cols-2"
-    : "grid grid-cols-1 gap-6";
-
   const primaryPanelData = compareEnabled ? primaryData ?? compareData?.left ?? null : primaryData;
   const secondaryPanelData = compareEnabled ? compareData?.right ?? null : null;
   const bannerError = primaryError ?? compareError;
+
+  function BreakdownSharedBar() {
+    return (
+      <div className="flex flex-1 flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Label className="text-xs font-medium text-slate-600 whitespace-nowrap">Dimension</Label>
+          <select
+            className="h-7 rounded-md border border-input bg-background px-2 text-xs shadow-sm outline-none"
+            value={primaryRequest.breakdown_dimension}
+            onChange={(event) =>
+              setPrimaryRequest({
+                ...primaryRequest,
+                breakdown_dimension: event.target.value as CohortRequest["breakdown_dimension"],
+              })
+            }
+            disabled={loading}
+          >
+            {BREAKDOWN_DIMENSION_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <Label className="text-xs font-medium text-slate-600 whitespace-nowrap">Metric</Label>
+          <select
+            className="h-7 rounded-md border border-input bg-background px-2 text-xs shadow-sm outline-none"
+            value={primaryRequest.breakdown_metric}
+            onChange={(event) =>
+              setPrimaryRequest({
+                ...primaryRequest,
+                breakdown_metric: event.target.value as CohortRequest["breakdown_metric"],
+              })
+            }
+            disabled={loading}
+          >
+            {BREAKDOWN_METRIC_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 pb-6">
@@ -249,19 +309,77 @@ export default function AnalyticsPage() {
           </Card>
         ) : null}
 
-        {compareEnabled ? (
-          <div className="mt-5">
-            <CompareDeltaCards compare={compareData} loading={loading} />
-          </div>
-        ) : (
+        {!compareEnabled ? (
           <div className="mt-5 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
             Compare mode is optional. Enable it to load a second cohort and surface the delta
             cards above the panels.
           </div>
-        )}
+        ) : null}
       </section>
 
-      <div className={panelGridClassName}>
+      {compareEnabled ? (
+        <div className="flex flex-col gap-6">
+          <CompareDeltaCards compare={compareData} loading={loading} />
+
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-stretch">
+            <div className="flex-1 min-w-0">
+              <CohortPanel
+                title="Primary Cohort"
+                description="The main explorer panel. Use it to inspect one curated dataset at a time."
+                request={primaryRequest}
+                onChange={setPrimaryRequest}
+                data={primaryPanelData}
+                loading={loading}
+                error={primaryError}
+                tone="primary"
+                showBreakdownControls={false}
+                showBottomSections={false}
+              />
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <CohortPanel
+                title="Comparison Cohort"
+                description="Use the same controls to keep the two panels directly comparable."
+                request={compareRequest}
+                onChange={setCompareRequest}
+                data={secondaryPanelData}
+                loading={loading}
+                error={compareError}
+                tone="secondary"
+                showBreakdownControls={false}
+                showBottomSections={false}
+              />
+            </div>
+          </div>
+
+          <BreakdownSharedBar />
+
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-stretch">
+            <div className="flex-1 min-w-0 space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <BreakdownChart breakdown={primaryPanelData?.breakdown ?? null} loading={loading} />
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <Table2 className="h-4 w-4 text-muted-foreground" />
+                  Drilldown
+                </div>
+                <DrilldownTable rows={primaryPanelData?.drilldown_rows ?? null} loading={loading} />
+              </div>
+            </div>
+
+            <div className="flex-1 min-w-0 space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <BreakdownChart breakdown={secondaryPanelData?.breakdown ?? null} loading={loading} />
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <Table2 className="h-4 w-4 text-muted-foreground" />
+                  Drilldown
+                </div>
+                <DrilldownTable rows={secondaryPanelData?.drilldown_rows ?? null} loading={loading} />
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
         <CohortPanel
           title="Primary Cohort"
           description="The main explorer panel. Use it to inspect one curated dataset at a time."
@@ -272,20 +390,7 @@ export default function AnalyticsPage() {
           error={primaryError}
           tone="primary"
         />
-
-        {compareEnabled ? (
-          <CohortPanel
-            title="Comparison Cohort"
-            description="Use the same controls to keep the two panels directly comparable."
-            request={compareRequest}
-            onChange={setCompareRequest}
-            data={secondaryPanelData}
-            loading={loading}
-            error={compareError}
-            tone="secondary"
-          />
-        ) : null}
-      </div>
+      )}
     </div>
   );
 }

@@ -32,3 +32,4 @@ Thumbs.db
 portfolio_data.json
 *.db
 tmp/datasets/
+!tmp/datasets/**/*.parquet
