@@ -35,10 +35,14 @@ engine = ERCFEngine()
 portfolio_lock = threading.Lock()
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-CURATED_DATA_ROOT = PROJECT_ROOT / "tmp" / "datasets"
+CURATED_DATA_ROOT = Path(os.getenv("DATA_ROOT", str(PROJECT_ROOT / "tmp" / "datasets")))
 curated_store = CuratedStore(CURATED_DATA_ROOT)
 
-DB_PATH = Path(__file__).parent.parent / "portfolio_data.json"
+DB_PATH = Path(
+    os.getenv(
+        "PORTFOLIO_DB_PATH", str(Path(__file__).parent.parent / "portfolio_data.json")
+    )
+)
 
 
 def _get_default_portfolio() -> List[LoanInput]:

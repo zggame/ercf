@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: ercf-backend
+    env: python
+    buildCommand: "cd backend && pip install -r requirements.txt"
+    startCommand: "cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+      - key: PORTFOLIO_DB_PATH
+        value: "/data/portfolio_data.json"
+      - key: DATA_ROOT
+        value: "/opt/render/project/src/tmp/datasets"
+      - key: ALLOWED_ORIGINS
+        sync: false
+    disk:
+      name: portfolio-storage
+      mountPath: /data
+      sizeGB: 1
+
+  - type: web
+    name: ercf-frontend
+    env: node
+    buildCommand: "cd frontend && npm install && npm run build"
+    startCommand: "cd frontend && npm start"
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
