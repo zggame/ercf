@@ -37,6 +37,56 @@ export default function DataAccessReferencePage() {
 
       <Card className="shadow-sm border-slate-200">
         <CardHeader>
+          <CardTitle className="text-lg">Official source pages</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm leading-6 text-slate-600">
+          <p>
+            Freddie Mac publishes the Multifamily Loan Performance Database through its{" "}
+            <a
+              href="https://mf.freddiemac.com/investors/performance-lookup"
+              className="font-medium text-blue-700 underline underline-offset-4"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Securities Performance &amp; Lookup
+            </a>{" "}
+            page. The MLPD section provides access to the database and the companion{" "}
+            <a
+              href="https://mf.freddiemac.com/docs/MLPD_data_dictionary.pdf"
+              className="font-medium text-blue-700 underline underline-offset-4"
+              target="_blank"
+              rel="noreferrer"
+            >
+              data dictionary
+            </a>
+            , which describes the panel data and snapshot data releases.
+          </p>
+          <p>
+            Fannie Mae publishes the Multifamily Loan Performance Data on{" "}
+            <a
+              href="https://capitalmarkets.fanniemae.com/credit-risk-transfer/multifamily-credit-risk-transfer/multifamily-loan-performance-data"
+              className="font-medium text-blue-700 underline underline-offset-4"
+              target="_blank"
+              rel="noreferrer"
+            >
+              its Multifamily Loan Performance Data page
+            </a>
+            . That page states the dataset is accessible through{" "}
+            <a
+              href="https://capitalmarkets.fanniemae.com/tools-applications/data-dynamics"
+              className="font-medium text-blue-700 underline underline-offset-4"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Data Dynamics
+            </a>
+            , along with the supporting glossary and file-layout materials.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-sm border-slate-200">
+        <CardHeader>
           <CardTitle className="text-lg">Operational implication</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm leading-6 text-slate-600">
