@@ -12,7 +12,7 @@ from app import main
 from app.engine import ERCFEngine
 from app.engine import load_config
 from app.schema import LoanInput
-from fastapi.testclient import TestClient
+from fastapi import HTTPException
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -363,27 +363,23 @@ class TestERCFEngine(unittest.TestCase):
         self.assertTrue(hasattr(result, "capital_amount"))
 
     def test_calculator_api_response_keeps_refined_trace_fields(self):
-        client = TestClient(main.app)
-        response = client.post(
-            "/api/calculate",
-            json={
-                "loan_id": "TRACE-API-1",
-                "original_upb": 1000,
-                "current_upb": 1000,
-                "original_loan_amount": 1000,
-                "dscr": 1.25,
-                "ltv": 0.70,
-                "rate_type": "fixed",
-                "interest_only": False,
-                "original_term_months": 120,
-                "amortization_term_months": 360,
-                "payment_performance": "current",
-                "property_type": "Multifamily",
-            },
+        response = main.calculate_single_loan(
+            LoanInput(
+                loan_id="TRACE-API-1",
+                original_upb=1000,
+                current_upb=1000,
+                original_loan_amount=1000,
+                dscr=1.25,
+                ltv=0.70,
+                rate_type="fixed",
+                interest_only=False,
+                original_term_months=120,
+                amortization_term_months=360,
+                payment_performance="current",
+                property_type="Multifamily",
+            )
         )
-
-        self.assertEqual(response.status_code, 200)
-        body = response.json()
+        body = response.model_dump(mode="json")
         trace_fields = [
             "base_weight",
             "ltv_multiplier",
@@ -702,22 +698,18 @@ class TestERCFEngine(unittest.TestCase):
         self.assertEqual(uploaded.qualifying_units, 50)
 
     def test_calculator_api_response_keeps_multiplier_trace_fields(self):
-        client = TestClient(main.app)
-        response = client.post(
-            "/api/calculate",
-            json={
-                "loan_id": "TRACE-API-1",
-                "original_upb": 1000,
-                "current_upb": 1000,
-                "dscr": 1.25,
-                "ltv": 0.70,
-                "property_type": "Multifamily",
-                "is_affordable": True,
-            },
+        response = main.calculate_single_loan(
+            LoanInput(
+                loan_id="TRACE-API-1",
+                original_upb=1000,
+                current_upb=1000,
+                dscr=1.25,
+                ltv=0.70,
+                property_type="Multifamily",
+                is_affordable=True,
+            )
         )
-
-        self.assertEqual(response.status_code, 200)
-        body = response.json()
+        body = response.model_dump(mode="json")
 
         for field in (
             "estimated_capital_factor",
@@ -1321,6 +1313,7 @@ class TestExplorerEndpoints(unittest.TestCase):
 
 class TestExplorerHttpEndpoints(unittest.TestCase):
     def test_post_explorer_cohort_returns_serialized_response(self):
+        from app.schema import CohortRequest
         from pathlib import Path
 
         rows = [
@@ -1340,29 +1333,27 @@ class TestExplorerHttpEndpoints(unittest.TestCase):
         ]
         nonexistent = Path("/nonexistent/2025Q3.parquet")
 
-        with TestClient(main.app, raise_server_exceptions=False) as client:
-            with patch.object(
-                main.curated_store, "get_parquet_path", return_value=nonexistent
-            ):
-                with patch.object(main.curated_store, "load_rows", return_value=rows):
-                    response = client.post(
-                        "/api/explorer/cohort",
-                        json={
-                            "source": "freddie_mac",
-                            "snapshot": "2025Q3",
-                            "filters": {"state": ["CA"]},
-                            "breakdown_dimension": "state",
-                            "breakdown_metric": "current_upb_total",
-                        },
+        with patch.object(
+            main.curated_store, "get_parquet_path", return_value=nonexistent
+        ):
+            with patch.object(main.curated_store, "load_rows", return_value=rows):
+                response = main.get_explorer_cohort(
+                    CohortRequest(
+                        source="freddie_mac",
+                        snapshot="2025Q3",
+                        filters={"state": ["CA"]},
+                        breakdown_dimension="state",
+                        breakdown_metric="current_upb_total",
                     )
+                )
 
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
+        payload = response.model_dump(mode="json")
         self.assertEqual(payload["cohort_label"], "freddie_mac 2025Q3")
         self.assertEqual(payload["summary"]["loan_count"], 1)
         self.assertEqual(payload["breakdown"]["rows"][0]["key"], "CA")
 
     def test_post_explorer_compare_returns_serialized_response(self):
+        from app.schema import CohortRequest, CompareRequest
         from pathlib import Path
 
         left_rows = [
@@ -1397,42 +1388,41 @@ class TestExplorerHttpEndpoints(unittest.TestCase):
         ]
         nonexistent = Path("/nonexistent/2025Q3.parquet")
 
-        with TestClient(main.app, raise_server_exceptions=False) as client:
+        with patch.object(
+            main.curated_store, "get_parquet_path", return_value=nonexistent
+        ):
             with patch.object(
-                main.curated_store, "get_parquet_path", return_value=nonexistent
+                main.curated_store,
+                "load_rows",
+                side_effect=[left_rows, right_rows],
             ):
-                with patch.object(
-                    main.curated_store,
-                    "load_rows",
-                    side_effect=[left_rows, right_rows],
-                ):
-                    response = client.post(
-                        "/api/explorer/compare",
-                        json={
-                            "left": {
-                                "source": "freddie_mac",
-                                "snapshot": "2025Q3",
-                                "filters": {"state": ["CA"]},
-                                "breakdown_dimension": "state",
-                                "breakdown_metric": "current_upb_total",
-                            },
-                            "right": {
-                                "source": "freddie_mac",
-                                "snapshot": "2025Q4",
-                                "filters": {"state": ["TX"]},
-                                "breakdown_dimension": "state",
-                                "breakdown_metric": "current_upb_total",
-                            },
-                        },
+                response = main.compare_explorer_cohorts(
+                    CompareRequest(
+                        left=CohortRequest(
+                            source="freddie_mac",
+                            snapshot="2025Q3",
+                            filters={"state": ["CA"]},
+                            breakdown_dimension="state",
+                            breakdown_metric="current_upb_total",
+                        ),
+                        right=CohortRequest(
+                            source="freddie_mac",
+                            snapshot="2025Q4",
+                            filters={"state": ["TX"]},
+                            breakdown_dimension="state",
+                            breakdown_metric="current_upb_total",
+                        ),
                     )
+                )
 
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
+        payload = response.model_dump(mode="json")
         self.assertEqual(payload["left"]["cohort_label"], "freddie_mac 2025Q3")
         self.assertEqual(payload["right"]["cohort_label"], "freddie_mac 2025Q4")
         self.assertAlmostEqual(payload["deltas"]["current_upb_total"], -60.0)
 
     def test_invalid_explorer_filter_returns_4xx_response(self):
+        from app.schema import CohortRequest
+
         rows = [
             {
                 "loan_id": "FRE-1",
@@ -1449,23 +1439,24 @@ class TestExplorerHttpEndpoints(unittest.TestCase):
             }
         ]
 
-        with TestClient(main.app, raise_server_exceptions=False) as client:
-            with patch.object(main.curated_store, "load_rows", return_value=rows):
-                response = client.post(
-                    "/api/explorer/cohort",
-                    json={
-                        "source": "freddie_mac",
-                        "snapshot": "2025Q3",
-                        "filters": {"unsupported_field": ["CA"]},
-                        "breakdown_dimension": "state",
-                        "breakdown_metric": "current_upb_total",
-                    },
+        with patch.object(main.curated_store, "load_rows", return_value=rows):
+            with self.assertRaises(HTTPException) as ctx:
+                main.get_explorer_cohort(
+                    CohortRequest(
+                        source="freddie_mac",
+                        snapshot="2025Q3",
+                        filters={"unsupported_field": ["CA"]},
+                        breakdown_dimension="state",
+                        breakdown_metric="current_upb_total",
+                    )
                 )
 
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("Unsupported cohort filter field", response.json()["detail"])
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("Unsupported cohort filter field", ctx.exception.detail)
 
     def test_invalid_explorer_dimension_returns_4xx_response(self):
+        from app.schema import CohortRequest, CompareRequest
+
         rows = [
             {
                 "loan_id": "FRE-1",
@@ -1482,30 +1473,29 @@ class TestExplorerHttpEndpoints(unittest.TestCase):
             }
         ]
 
-        with TestClient(main.app, raise_server_exceptions=False) as client:
-            with patch.object(main.curated_store, "load_rows", return_value=rows):
-                response = client.post(
-                    "/api/explorer/compare",
-                    json={
-                        "left": {
-                            "source": "freddie_mac",
-                            "snapshot": "2025Q3",
-                            "filters": {"state": ["CA"]},
-                            "breakdown_dimension": "state",
-                            "breakdown_metric": "current_upb_total",
-                        },
-                        "right": {
-                            "source": "freddie_mac",
-                            "snapshot": "2025Q3",
-                            "filters": {"state": ["CA"]},
-                            "breakdown_dimension": "msa",
-                            "breakdown_metric": "current_upb_total",
-                        },
-                    },
+        with patch.object(main.curated_store, "load_rows", return_value=rows):
+            with self.assertRaises(HTTPException) as ctx:
+                main.compare_explorer_cohorts(
+                    CompareRequest(
+                        left=CohortRequest(
+                            source="freddie_mac",
+                            snapshot="2025Q3",
+                            filters={"state": ["CA"]},
+                            breakdown_dimension="state",
+                            breakdown_metric="current_upb_total",
+                        ),
+                        right=CohortRequest(
+                            source="freddie_mac",
+                            snapshot="2025Q3",
+                            filters={"state": ["CA"]},
+                            breakdown_dimension="msa",
+                            breakdown_metric="current_upb_total",
+                        ),
+                    )
                 )
 
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("Unsupported breakdown dimension", response.json()["detail"])
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("Unsupported breakdown dimension", ctx.exception.detail)
 
 
 if __name__ == "__main__":

@@ -105,9 +105,12 @@ function ChartCard({ config, series }: { config: ChartConfig; series?: FixedChar
 export function FixedCharts({ fixedCharts, loading = false }: FixedChartsProps) {
   if (loading) {
     return (
-      <div className="grid gap-4 xl:grid-cols-3">
-        {CHARTS.map((config) => (
-          <Card key={config.key} className="shadow-sm">
+      <div className="grid gap-4 xl:grid-cols-2">
+        {CHARTS.map((config, index) => (
+          <Card
+            key={config.key}
+            className={`shadow-sm ${index === 2 ? "xl:col-span-2" : ""}`}
+          >
             <CardHeader className="pb-3">
               <CardTitle className="text-base">{config.title}</CardTitle>
               <CardDescription>{config.description}</CardDescription>
@@ -122,9 +125,11 @@ export function FixedCharts({ fixedCharts, loading = false }: FixedChartsProps) 
   }
 
   return (
-    <div className="grid gap-4 xl:grid-cols-3">
-      {CHARTS.map((config) => (
-        <ChartCard key={config.key} config={config} series={fixedCharts?.[config.key]} />
+    <div className="grid gap-4 xl:grid-cols-2">
+      {CHARTS.map((config, index) => (
+        <div key={config.key} className={index === 2 ? "xl:col-span-2" : ""}>
+          <ChartCard config={config} series={fixedCharts?.[config.key]} />
+        </div>
       ))}
     </div>
   );
